@@ -1,0 +1,40 @@
+# AI工具忽略文件
+
+# 数据目录（避免分析大量数据文件）
+data/
+logs/
+
+# 虚拟环境（避免分析依赖包）
+venv/
+.venv/
+env/
+ENV/
+
+# 构建和编译产物
+build/
+dist/
+*.egg-info/
+__pycache__/
+
+# IDE和编辑器配置（通常不需要分析）
+.vscode/
+.idea/
+.sublime-project
+.sublime-workspace
+
+# 配置文件（敏感信息）
+config/config.ini
+.env
+.env.local
+
+# 缓存文件
+.cache/
+.pytest_cache/
+.mypy_cache/
+.tox/
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.log

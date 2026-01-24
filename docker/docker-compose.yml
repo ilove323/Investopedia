@@ -1,0 +1,147 @@
+version: '3.8'
+
+services:
+  # Streamlit应用
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: policy_system_app
+    ports:
+      - "${APP_PORT:-8501}:8501"
+    environment:
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_SERVER_RUN_ON_SAVE=true
+
+      # 服务配置
+      - RAGFLOW_HOST=ragflow
+      - RAGFLOW_PORT=9380
+      - WHISPER_HOST=whisper
+      - WHISPER_PORT=9000
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../src:/app/src
+      - ../config:/app/config
+
+    depends_on:
+      ragflow:
+        condition: service_healthy
+      whisper:
+        condition: service_healthy
+
+    networks:
+      - policy_network
+
+    restart: unless-stopped
+
+  # RAGFlow服务
+  ragflow:
+    image: infiniflow/ragflow:latest
+    container_name: policy_ragflow
+    ports:
+      - "${RAGFLOW_PORT:-9380}:9380"
+    environment:
+      RAGFLOW_HOME: /home/ragflow
+      SERVICE_HOST: "0.0.0.0"
+      SERVICE_PORT: 9380
+      LLM_MODEL: "deepseek-chat"
+      LLM_API_BASE: "https://api.deepseek.com"
+      LLM_API_KEY: "${DEEPSEEK_API_KEY}"
+      MYSQL_USER: ragflow
+      MYSQL_PASSWORD: ragflow123456
+      MYSQL_DATABASE: ragflow
+
+    volumes:
+      - ragflow_data:/home/ragflow/data
+      - ragflow_logs:/home/ragflow/logs
+
+    depends_on:
+      - mysql
+
+    networks:
+      - policy_network
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9380/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    restart: unless-stopped
+
+  # Whisper服务
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    container_name: policy_whisper
+    ports:
+      - "${WHISPER_PORT:-9000}:9000"
+    environment:
+      WHISPER_MODEL: "base"
+      WHISPER_DEVICE: "cpu"
+      WHISPER_LANGUAGE: "zh"
+      WORKERS: 1
+
+    volumes:
+      - whisper_models:/root/.cache/whisper
+      - whisper_temp:/tmp/whisper
+
+    networks:
+      - policy_network
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    restart: unless-stopped
+
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    container_name: policy_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ragflow123456
+      MYSQL_DATABASE: ragflow
+      MYSQL_USER: ragflow
+      MYSQL_PASSWORD: ragflow123456
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+    networks:
+      - policy_network
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  ragflow_data:
+  ragflow_logs:
+  whisper_models:
+  whisper_temp:
+  mysql_data:
+
+networks:
+  policy_network:
+    driver: bridge

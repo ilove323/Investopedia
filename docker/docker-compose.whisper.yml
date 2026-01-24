@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    container_name: whisper
+    ports:
+      - "${WHISPER_PORT:-9000}:9000"
+    environment:
+      # 模型配置
+      WHISPER_MODEL: "base"  # tiny/base/small/medium/large
+      WHISPER_DEVICE: "cpu"  # cpu/cuda
+      WHISPER_LANGUAGE: "zh"  # 默认语言
+
+      # 服务配置
+      WORKERS: 1
+      LOG_LEVEL: "info"
+
+    volumes:
+      # 模型缓存
+      - whisper_models:/root/.cache/whisper
+      # 临时文件
+      - whisper_temp:/tmp/whisper
+
+    networks:
+      - policy_network
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    restart: unless-stopped
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+volumes:
+  whisper_models:
+  whisper_temp:
+
+networks:
+  policy_network:
+    driver: bridge
