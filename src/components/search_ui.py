@@ -73,11 +73,22 @@ def render_advanced_search_panel() -> Dict[str, Any]:
                 default=["active"]
             )
 
-            date_range = st.date_input(
-                "发布日期范围",
-                value=(None, None),
-                label_visibility="visible"
-            )
+            use_date_range = st.checkbox("使用日期范围筛选", value=False)
+            date_from = None
+            date_to = None
+
+            if use_date_range:
+                try:
+                    date_range = st.date_input(
+                        "发布日期范围",
+                        value=[],
+                        label_visibility="visible"
+                    )
+                    if isinstance(date_range, (list, tuple)) and len(date_range) >= 2:
+                        date_from = date_range[0]
+                        date_to = date_range[1]
+                except Exception:
+                    pass
 
         # 排序选项
         sort_by = st.selectbox(
@@ -87,11 +98,11 @@ def render_advanced_search_panel() -> Dict[str, Any]:
         )
 
         return {
-            'policy_type': policy_type,
-            'region': region,
-            'status': status,
-            'date_from': date_range[0] if isinstance(date_range, tuple) and len(date_range) > 0 else None,
-            'date_to': date_range[1] if isinstance(date_range, tuple) and len(date_range) > 1 else None,
+            'policy_type': policy_type[0] if policy_type else None,
+            'region': region[0] if region else None,
+            'status': status[0] if status else None,
+            'date_from': date_from,
+            'date_to': date_to,
             'sort_by': sort_by
         }
 

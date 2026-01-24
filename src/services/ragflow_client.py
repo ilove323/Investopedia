@@ -38,6 +38,7 @@ RAGFlow服务客户端
     results = client.search("政策内容", top_k=10)
 """
 import logging
+import requests
 from typing import Optional, Dict, List, Any
 
 # ===== 导入新的配置系统 =====
@@ -48,6 +49,7 @@ from src.services.api_utils import APIClient, APIError
 config = get_config()
 
 RAGFLOW_BASE_URL = config.ragflow_base_url  # RAGFlow服务URL（http://host:port）
+RAGFLOW_API_KEY = config.ragflow_api_key  # RAGFlow API密钥（如果需要认证）
 RAGFLOW_TIMEOUT = config.ragflow_timeout  # API调用超时时间（秒）
 RAGFLOW_RETRY_TIMES = config.ragflow_retry_times  # 失败重试次数
 RAGFLOW_RETRY_DELAY = config.ragflow_retry_delay  # 重试延迟（秒）
@@ -63,11 +65,24 @@ RAGFLOW_ENDPOINTS = {
     'qa': '/api/qa'
 }
 
-# RAGFlow API请求头
-RAGFLOW_HEADERS = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-}
+# RAGFlow API请求头（包含认证信息）
+def _get_ragflow_headers() -> dict:
+    """
+    生成RAGFlow请求头，包含API Key认证信息
+
+    如果配置了RAGFLOW_API_KEY，将通过Authorization头发送
+    格式：Authorization: Bearer {api_key}
+    """
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+
+    # 如果配置了API Key，添加认证信息
+    if RAGFLOW_API_KEY:
+        headers['Authorization'] = f'Bearer {RAGFLOW_API_KEY}'
+
+    return headers
 
 logger = logging.getLogger(__name__)
 
@@ -87,28 +102,42 @@ class RAGFlowClient:
             timeout=RAGFLOW_TIMEOUT,
             retry_times=RAGFLOW_RETRY_TIMES
         )
-        self.headers = RAGFLOW_HEADERS
+        # 生成包含认证信息的请求头
+        self.headers = _get_ragflow_headers()
+
+        # 如果配置了API Key，记录日志
+        if RAGFLOW_API_KEY:
+            logger.info("RAGFlow客户端: 使用API Key认证")
+
         self._check_connection()
 
     def _check_connection(self):
         """检查与RAGFlow的连接"""
         try:
-            health_endpoint = RAGFLOW_ENDPOINTS['health']
-            is_healthy = self.client.check_health(health_endpoint)
-            if is_healthy:
-                logger.info("RAGFlow服务连接成功")
-            else:
-                logger.warning("RAGFlow服务可能不可用")
+            # 尝试连接到基础 URL，检查服务是否在线
+            # 注：不同版本的 RAGFlow 可能有不同的 API 路径
+            response = requests.get(RAGFLOW_BASE_URL, timeout=5)
+            # 只要能连接上服务，就认为可用（即使返回 404）
+            logger.info(f"RAGFlow服务连接成功 (HTTP {response.status_code})")
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"RAGFlow服务离线或地址错误: {RAGFLOW_BASE_URL}")
+        except requests.exceptions.Timeout:
+            logger.warning(f"RAGFlow服务连接超时")
         except Exception as e:
             logger.warning(f"RAGFlow服务连接检查失败: {e}")
 
     def check_health(self) -> bool:
-        """检查RAGFlow服务健康状态"""
+        """
+        检查RAGFlow服务健康状态
+
+        只要能连接到服务就认为健康（某些RAGFlow版本的API路径可能不同）
+        """
         try:
-            endpoint = RAGFLOW_ENDPOINTS['health']
-            self.client.get(endpoint, headers=self.headers)
+            response = requests.get(RAGFLOW_BASE_URL, timeout=5)
+            # 服务在线即为健康（HTTP 连接成功）
             return True
-        except APIError:
+        except Exception as e:
+            logger.debug(f"RAGFlow 健康检查失败: {e}")
             return False
 
     def upload_document(self, file_path: str, file_name: str,

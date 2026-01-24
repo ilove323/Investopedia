@@ -93,21 +93,26 @@ def perform_search():
         query = st.session_state.search_query
         filters = st.session_state.search_filters
 
-        # 构建查询条件
-        results = dao.get_policies(
-            policy_type=filters.get("policy_type"),
-            status=filters.get("status"),
-            region=filters.get("region"),
-            date_from=filters.get("date_from"),
-            date_to=filters.get("date_to")
-        )
+        # 获取所有政策
+        results = dao.get_policies()
+
+        # 应用过滤条件
+        if filters.get("policy_type"):
+            results = [p for p in results if p.get('policy_type') == filters.get("policy_type")]
+
+        if filters.get("status"):
+            results = [p for p in results if p.get('status') == filters.get("status")]
+
+        if filters.get("region"):
+            results = [p for p in results if p.get('region') == filters.get("region")]
 
         # 关键词过滤
         if query:
             results = [
                 p for p in results
-                if query.lower() in p.metadata.title.lower()
-                or query.lower() in p.content.summary.lower()
+                if query.lower() in p.get('title', '').lower()
+                or query.lower() in p.get('summary', '').lower()
+                or query.lower() in p.get('content', '').lower()
             ]
 
         st.session_state.search_results = results

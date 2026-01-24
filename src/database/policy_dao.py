@@ -77,8 +77,16 @@ class PolicyDAO:
         )
 
         try:
-            self.db.execute_update(query, params)
-            return self.db.get_last_insert_id()
+            # 在同一连接中执行插入和获取ID
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                conn.commit()
+                # 在同一连接上获取最后插入的ID
+                cursor.execute("SELECT last_insert_rowid()")
+                policy_id = cursor.fetchone()[0]
+                logger.info(f"创建政策成功: ID={policy_id}, 标题={policy_data.get('title')}")
+                return policy_id
         except Exception as e:
             logger.error(f"创建政策失败: {e}")
             raise

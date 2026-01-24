@@ -167,6 +167,11 @@ class ConfigLoader:
         return f"http://{self.ragflow_host}:{self.ragflow_port}"
 
     @property
+    def ragflow_api_key(self) -> str:
+        """获取RAGFlow API Key（支持环境变量覆盖）"""
+        return os.getenv("RAGFLOW_API_KEY") or self.get("RAGFLOW", "api_key", "")
+
+    @property
     def ragflow_timeout(self) -> int:
         return self.get_int("RAGFLOW", "timeout", 30)
 

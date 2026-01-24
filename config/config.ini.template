@@ -37,6 +37,12 @@ allowed_file_types = pdf,docx,xlsx,txt
 host = localhost
 port = 9380
 
+# RAGFlow API认证
+# 说明：使用API Key进行请求认证，通过HTTP Authorization头发送
+# 格式：api_key = your-api-key-here
+# 设置为空字符串表示无认证（公开访问）
+api_key =
+
 # API超时和重试配置
 timeout = 30
 retry_times = 3
