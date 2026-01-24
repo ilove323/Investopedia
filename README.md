@@ -118,14 +118,20 @@ deactivate
 cp config/config.ini.template config/config.ini
 ```
 
-然后编辑 `config/config.ini` 根据实际环境修改配置项：
+**⚠️ 重要：** 编辑 `config/config.ini` 时，必须注意RAGFlow知识库配置：
 
-- `[APP]` - 应用全局配置
-- `[RAGFLOW]` - RAGFlow服务配置
-- `[WHISPER]` - Whisper服务配置
-- `[DATABASE]` - 数据库配置
-- `[GRAPH]` - 知识图谱配置
-- `[LOGGING]` - 日志配置
+```ini
+[RAGFLOW]
+host = localhost           # RAGFlow服务器地址
+port = 9380               # RAGFlow服务端口
+api_key =                 # API认证（如需要）
+
+# ⚠️ 知识库配置（必须与RAGFlow中实际创建的知识库名称一致）
+kb_name = policy_demo_kb  # 在RAGFlow中手动创建此知识库！
+kb_description = 政策知识库 - 专项债/特许经营/数据资产
+```
+
+**📖 详见：[RAGFLOW_SETUP.md](RAGFLOW_SETUP.md)** - 完整的RAGFlow前置设置步骤
 
 也可以使用环境变量覆盖配置文件中的值：
 
@@ -145,6 +151,28 @@ export DEEPSEEK_API_KEY=your_api_key_here
 **说明：** 环境变量会优先覆盖 `config.ini` 中的配置。这样可以在不修改文件的情况下快速切换配置（例如在Docker部署时）。
 
 ### 3. 启动外部服务
+
+**⚠️ 重要前置步骤（必须先做）：**
+
+在启动应用之前，需要完成RAGFlow的设置：
+
+1. **启动RAGFlow和Whisper容器**
+   ```bash
+   docker-compose -f docker/docker-compose.ragflow.yml up -d
+   docker-compose -f docker/docker-compose.whisper.yml up -d
+   ```
+
+2. **在RAGFlow中创建知识库**
+   - 访问 http://localhost:9380 登录RAGFlow
+   - 创建知识库，名称必须为：`policy_demo_kb`
+   - 该名称必须与 config.ini 中的 `kb_name` 一致
+
+3. **验证RAGFlow连接**
+   ```bash
+   python3 test_ragflow_upload.py
+   ```
+
+**详细步骤见：[RAGFLOW_SETUP.md](RAGFLOW_SETUP.md)**
 
 本应用依赖两个外部服务：
 - **RAGFlow** (端口 9380) - 用于文档处理和AI能力

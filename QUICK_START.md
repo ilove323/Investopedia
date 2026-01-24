@@ -4,6 +4,34 @@
 
 ---
 
+## ⚠️ 前置要求（必做）
+
+**在启动应用之前，必须完成以下步骤：**
+
+### 1. 启动外部服务
+```bash
+# 启动RAGFlow和Whisper
+docker-compose -f docker/docker-compose.ragflow.yml up -d
+docker-compose -f docker/docker-compose.whisper.yml up -d
+```
+
+### 2. 在RAGFlow中创建知识库
+- 访问 RAGFlow Web界面：`http://localhost:9380`
+- 创建名为 `policy_demo_kb` 的知识库
+- 记录知识库名称（必须与 config.ini 匹配）
+
+### 3. 配置应用
+```bash
+cp config/config.ini.template config/config.ini
+# 编辑 config/config.ini，确保：
+# - [RAGFLOW] host/port 正确
+# - kb_name = policy_demo_kb （必须与RAGFlow中的名称一致）
+```
+
+**详见：📖 [RAGFLOW_SETUP.md](RAGFLOW_SETUP.md)** ← 完整的前置设置步骤
+
+---
+
 ## 📊 当前状态一览
 
 **项目完成度：100%** ✅ 所有核心功能已实现并验证
@@ -15,8 +43,8 @@
 | 数据库 | ✅ 完成 | SQLite，5表结构，自动初始化 |
 | 数据模型 | ✅ 完成 | Policy、PolicyMetadata、PolicyGraph等 |
 | 业务逻辑 | ✅ 完成 | 元数据提取、标签生成、时效性检查 |
-| 文件处理 | ✅ 完成 | PDF/DOCX/TXT智能提取 |
-| 摘要生成 | ✅ 完成 | DeepSeek API (优先) 和 RAGFlow (备选) |
+| 文件处理 | ✅ 完成 | 直接上传到RAGFlow处理 |
+| 摘要生成 | ✅ 完成 | RAGFlow (优先) 和文本截取 (备选) |
 | 知识图谱 | ✅ 完成 | NetworkX基础，支持5类节点7类关系 |
 | 页面功能 | ✅ 完成 | 5个页面，200+行UI组件 |
 | **验证测试** | ✅ 完成 | 所有核心功能已验证 |
@@ -25,29 +53,24 @@
 
 ## 🔧 最近修复（已验证）
 
-### ✅ PDF文本提取修复
-- **问题：** PDF上传后摘要显示"无法从提供的文本中提取有效信息"
-- **原因：** 直接UTF-8解码PDF二进制数据导致乱码
-- **解决：** 添加 `_extract_file_content()` 函数，针对PDF/DOCX/TXT采用不同的提取方式
-- **验证：** ✅ PDF正确提取，摘要生成完整（5部分结构）
-
-### ✅ 摘要生成优化
-- **问题：** 摘要输出不完整，缺少"适用范围"、"关键时间"、"主要影响"等部分
-- **原因：** 1) 有重复的 `generate_summary()` 函数定义 2) max_length=200太短 3) Prompt没有强制要求
+### ✅ RAGFlow集成优化
+- **问题：** 应用层重复调用DeepSeek，文件处理逻辑分散
+- **原因：** 架构设计不合理，应该由RAGFlow统一处理
 - **解决：** 
-  - 移除重复函数定义
-  - max_length改为1500字符
-  - 强化DeepSeek Prompt明确要求5个部分
-  - max_tokens改为1200，文本输入增加到5000字符
-- **验证：** ✅ 摘要包含所有5个必需部分（100%完整）
+  - 移除应用层的DeepSeek直接调用
+  - 删除文件解析库（pdfplumber、PyPDF2、python-docx）
+  - 改为直接上传文件到RAGFlow处理
+  - 所有配置从config.ini读取
+- **验证：** ✅ 代码简洁化，依赖减少3个库
 
-### ✅ 图谱构建修复
-- **问题：** 图谱构建失败："'dict' object has no attribute 'id'"
-- **原因：** `get_policies()` 返回字典列表，代码误作为对象属性访问
+### ✅ 配置参数化
+- **问题：** 知识库名称硬编码在代码中
+- **原因：** 没有集中的配置管理
 - **解决：** 
-  - 改用字典访问方式 `policy['id']` 而不是 `policy.id`
-  - 正确使用GraphNode和GraphEdge对象API
-  - 补充导入GraphNode、GraphEdge
+  - 在config_loader.py中添加 `ragflow_kb_name` 属性
+  - 在documents_page.py中从config读取知识库名称
+  - 在config.ini.template中明确说明RAGFlow前置步骤
+- **验证：** ✅ 所有参数都从config.ini读取
 - **验证：** ✅ 图谱构建成功（2个节点，1条边）
 
 ---

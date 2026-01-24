@@ -63,8 +63,19 @@ document_chunk_size = 500
 document_chunk_overlap = 50
 document_smart_chunking = true
 
-# 知识库配置
+# ========== 知识库配置 ==========
+# 说明：以下知识库需要在RAGFlow中手动创建
+#
+# 前置步骤：
+# 1. 访问 RAGFlow Web界面：http://host:port
+# 2. 登录RAGFlow管理后台
+# 3. 创建知识库（Knowledge Base）
+# 4. 设置知识库名称为下面配置的 kb_name 值
+#
+# 知识库名称（必须与RAGFlow中创建的知识库名称一致）
 kb_name = policy_demo_kb
+
+# 知识库描述
 kb_description = 政策知识库 - 专项债/特许经营/数据资产
 
 # 日志级别
