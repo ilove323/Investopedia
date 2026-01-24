@@ -141,52 +141,70 @@ class RAGFlowClient:
             return False
 
     def upload_document(self, file_path: str, file_name: str,
-                       knowledge_base_name: str = "policy_demo_kb") -> Optional[str]:
+                       knowledge_base_name: Optional[str] = None) -> Optional[str]:
         """
         上传文档到RAGFlow
 
         Args:
             file_path: 本地文件路径
             file_name: 文件名
-            knowledge_base_name: 知识库名称
+            knowledge_base_name: 知识库名称（如不指定则从config.ini读取）
 
         Returns:
             文档ID，失败返回None
         """
         try:
+            # 如果未指定知识库名称，从配置读取
+            if knowledge_base_name is None:
+                knowledge_base_name = getattr(config, 'ragflow_kb_name', 'policy_demo_kb')
+            
             with open(file_path, 'rb') as f:
                 files = {
                     'file': (file_name, f, self._get_file_mimetype(file_name))
                 }
 
-                params = {
-                    'knowledge_base': knowledge_base_name
-                }
+                # 构建查询字符串参数
+                endpoint = f"{RAGFLOW_ENDPOINTS['upload']}?knowledge_base={knowledge_base_name}"
+                
+                logger.info(f"上传文档到知识库 '{knowledge_base_name}': {file_name}")
 
-                endpoint = RAGFLOW_ENDPOINTS['upload']
                 response = self.client.post(
                     endpoint,
                     headers=self.headers,
-                    files=files,
-                    params=params
+                    files=files
                 )
+                
+                logger.debug(f"上传响应: {response}")
 
                 # 解析响应获取文档ID
-                if 'doc_id' in response:
-                    logger.info(f"文档上传成功: {file_name} -> {response['doc_id']}")
-                    return response['doc_id']
-                elif 'id' in response:
-                    logger.info(f"文档上传成功: {file_name} -> {response['id']}")
-                    return response['id']
-                else:
-                    logger.warning(f"文档上传响应格式异常: {response}")
-                    return None
+                if isinstance(response, dict):
+                    # 尝试多种可能的响应格式
+                    if 'doc_id' in response:
+                        logger.info(f"✅ 文档上传成功: {file_name} -> {response['doc_id']}")
+                        return response['doc_id']
+                    elif 'id' in response:
+                        logger.info(f"✅ 文档上传成功: {file_name} -> {response['id']}")
+                        return response['id']
+                    elif 'data' in response and isinstance(response['data'], dict):
+                        data = response['data']
+                        if 'doc_id' in data:
+                            logger.info(f"✅ 文档上传成功: {file_name} -> {data['doc_id']}")
+                            return data['doc_id']
+                        elif 'id' in data:
+                            logger.info(f"✅ 文档上传成功: {file_name} -> {data['id']}")
+                            return data['id']
+                
+                logger.warning(f"文档上传响应格式异常: {response}")
+                return None
 
         except APIError as e:
-            logger.error(f"上传文档失败: {e}")
+            logger.error(f"上传文档失败 (APIError): {e}")
+            return None
+        except FileNotFoundError as e:
+            logger.error(f"文件不存在: {file_path}")
             return None
         except Exception as e:
-            logger.error(f"上传文档异常: {e}")
+            logger.error(f"上传文档异常: {type(e).__name__}: {e}")
             return None
 
     def delete_document(self, doc_id: str) -> bool:

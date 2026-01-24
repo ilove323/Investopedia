@@ -23,6 +23,7 @@ from src.database.policy_dao import PolicyDAO
 from src.business.validity_checker import ValidityChecker
 from src.components.policy_card import render_policy_card, render_policy_detail, render_policy_form
 from src.services.ragflow_client import get_ragflow_client
+from src.config import get_config
 import logging
 
 logger = logging.getLogger(__name__)
@@ -141,21 +142,49 @@ def render_upload_section():
                 with st.spinner("📤 正在上传文档到RAGFlow..."):
                     ragflow_client = get_ragflow_client()
                     
+                    # 检查RAGFlow连接
+                    if not ragflow_client.check_health():
+                        st.error("❌ RAGFlow服务不可用，请检查：\n1. RAGFlow是否已启动\n2. 配置中的host/port是否正确\n3. 网络连接是否正常")
+                        return
+                    
                     # 将Streamlit的文件对象保存为临时文件
                     with tempfile.NamedTemporaryFile(delete=False, suffix=f".{uploaded_file.name.split('.')[-1]}") as tmp:
                         tmp.write(uploaded_file.getbuffer())
                         tmp_path = tmp.name
                     
                     try:
+                        # 从配置读取知识库名称
+                        config = get_config()
+                        kb_name = config.ragflow_kb_name
+                        
                         # 上传到RAGFlow
+                        st.info(f"📄 文件已保存为临时文件: {tmp_path}")
+                        st.info(f"🔄 正在上传到RAGFlow知识库: {kb_name}")
+                        
                         doc_id = ragflow_client.upload_document(
                             file_path=tmp_path,
                             file_name=uploaded_file.name,
-                            knowledge_base_name="policy_demo_kb"
+                            knowledge_base_name=kb_name
                         )
                         
                         if not doc_id:
-                            st.error("❌ 上传到RAGFlow失败，请检查服务连接")
+                            st.error(f"""
+❌ 上传到RAGFlow失败！可能的原因：
+
+1. **知识库不存在** - 需要在RAGFlow中先创建 '{kb_name}'
+2. **文件格式不支持** - 检查RAGFlow是否支持此格式
+3. **API端点配置错误** - 检查config.ini中的RAGFlow配置
+4. **权限问题** - 检查RAGFlow API Key是否有效
+
+💡 建议：
+- 登录RAGFlow Web界面 (http://host:9380)
+- 手动创建名为 '{kb_name}' 的知识库
+- 检查 config/config.ini 中 [RAGFLOW] 的配置是否正确
+
+📋 当前配置：
+- Host: {ragflow_client.client.base_url}
+- Knowledge Base: {kb_name}
+                            """)
                             return
                         
                         # 保存到数据库（content存储RAGFlow文档ID）

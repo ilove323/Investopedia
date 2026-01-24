@@ -215,6 +215,11 @@ class ConfigLoader:
         }
 
     @property
+    def ragflow_kb_name(self) -> str:
+        """获取RAGFlow知识库名称"""
+        return self.get("RAGFLOW", "kb_name", "policy_demo_kb")
+
+    @property
     def deepseek_api_key(self) -> str:
         return os.getenv("DEEPSEEK_API_KEY") or self.get("RAGFLOW", "deepseek_api_key", "")
 
