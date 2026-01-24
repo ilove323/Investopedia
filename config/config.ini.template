@@ -67,10 +67,6 @@ document_smart_chunking = true
 kb_name = policy_demo_kb
 kb_description = 政策知识库 - 专项债/特许经营/数据资产
 
-# DeepSeek API配置（用于RAGFlow）
-deepseek_api_key = your_api_key_here
-deepseek_model = deepseek-chat
-
 # 日志级别
 log_level = INFO
 

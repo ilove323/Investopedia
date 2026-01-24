@@ -1,7 +1,7 @@
 # 📋 详细任务列表和执行计划
 
 > 最后更新：2026-01-24
-> 当前阶段：准备实现页面模块和完成代码注释
+> 当前阶段：BUG修复和测试验证阶段
 
 ---
 
@@ -10,22 +10,146 @@
 | 阶段 | 优先级 | 任务数 | 工作量 | 状态 |
 |------|--------|--------|--------|------|
 | **阶段0：关键修复** | 🔴 最高 | 2 | 1-2h | ✅ 完成 |
+| **阶段0.1：BUG修复** | 🔴 最高 | 1 | 1h | ✅ 完成 |
 | **阶段1：代码注释** | 🔴 最高 | 8 | 3-4h | ⏳ 待开始 |
 | **阶段2：页面实现** | 🟠 高 | 5 | 8-10h | ✅ 完成 |
 | **阶段3：UI组件** | 🟠 高 | 3 | 2-3h | ✅ 完成 |
-| **阶段4：测试验证** | 🟡 中 | 2 | 1-2h | ⏳ 待开始 |
+| **阶段4：测试验证** | 🟡 中 | 2 | 1-2h | 🔄 进行中 |
 | **阶段5：文档完善** | 🟡 中 | 3 | 1-2h | 🔄 进行中 |
-| **总计** | — | 23 | 16-23h | 🟢 39% 完成 |
+| **总计** | — | 24 | 17-24h | 🟢 42% 完成 |
 
 ---
 
-## 🔴 阶段0：关键修复（最高优先级）
+## 🟢 阶段0.1：BUG修复（关键）
 
-**目标：修复app.py配置导入，恢复应用正常运行**
-**预计工作量：1-2小时**
-**关键性：必须先完成，否则应用无法启动**
+**目标：修复文档上传时的UNIQUE约束错误**
+**预计工作量：1小时**
+**关键性：必须修复，否则上传功能无法使用**
 
-### 任务0.1：修复 app.py 配置导入
+### 任务0.1.1：修复 documents_page.py 文档上传验证
+<details open>
+<summary><strong>✅ 已完成</strong></summary>
+
+**任务号：BUG-FIX-001**
+**优先级：🔴 紧急**
+**工作量：30分钟**
+**所属文件：** `src/pages/documents_page.py`
+**修改行数：约35行**
+
+**问题诊断：**
+上传文档后出现错误：`UNIQUE constraint failed: policies.document_number`
+
+原因分析：
+1. document_number字段允许NULL值，SQLite中多个NULL会导致约束冲突
+2. 当用户未填文号时，空字符串转NULL会导致多个NULL值
+3. 没有在上传前检查文号是否已存在
+
+**解决方案：**
+1. 前端表单验证 - 检查document_number唯一性和规范化输入
+2. 后端验证 - DAO层也进行重复检查（防线）
+3. 错误处理 - 给出清晰的中文错误提示
+
+**修改内容：**
+```python
+# 新增验证逻辑（第62-75行）
+if not title or title.strip() == '':
+    st.error("❌ 政策名称不能为空")
+    return
+
+# 检查文号唯一性
+dao = PolicyDAO()
+if document_number and document_number.strip() != '':
+    existing_policy = dao.get_policy_by_document_number(document_number.strip())
+    if existing_policy:
+        st.error(f"❌ 文号 '{document_number}' 已存在，请修改或联系管理员")
+        return
+    document_number = document_number.strip()
+else:
+    st.warning("⚠️ 建议填写文号以便管理和搜索")
+    document_number = None
+
+# 改进错误处理（第109-115行）
+except ValueError as e:
+    st.error(f"❌ {str(e)}")
+except Exception as e:
+    if "UNIQUE constraint failed" in str(e):
+        st.error("❌ 文号已存在，请检查或修改文号后重试")
+    else:
+        st.error(f"❌ 上传失败：{str(e)}")
+```
+
+**验收标准：**
+- ✅ 上传相同文号 -> 显示"文号已存在"错误
+- ✅ 上传空文号 -> 显示警告但允许继续
+- ✅ 上传新文号 -> 成功上传
+- ✅ 不出现数据库约束异常
+
+</details>
+
+### 任务0.1.2：修复 policy_dao.py create_policy方法
+<details open>
+<summary><strong>✅ 已完成</strong></summary>
+
+**任务号：BUG-FIX-001**
+**优先级：🔴 紧急**
+**工作量：30分钟**
+**所属文件：** `src/database/policy_dao.py`
+**修改行数：约50行**
+
+**问题诊断：**
+create_policy方法缺少数据验证，导致重复文号和NULL值处理不当。
+
+**解决方案：**
+在DAO层添加验证逻辑，作为数据层防线。
+
+**修改内容：**
+```python
+# 第67-100行：完善函数文档
+"""创建政策记录
+    
+Args:
+    policy_data: 政策数据字典，包含以下字段：
+        - title: 政策标题（必填）
+        - document_number: 文号（可选，但如果提供必须唯一）
+        ...
+        
+Returns:
+    int: 创建的政策ID
+    
+Raises:
+    ValueError: 当document_number重复时
+    Exception: 其他数据库错误
+"""
+
+# 第101-115行：数据验证逻辑
+document_number = policy_data.get('document_number')
+if document_number and document_number.strip() != '':
+    document_number = document_number.strip()
+    existing = self.get_policy_by_document_number(document_number)
+    if existing:
+        error_msg = f"文号 '{document_number}' 已存在，无法创建重复的政策"
+        logger.warning(f"创建政策失败 - {error_msg}")
+        raise ValueError(error_msg)
+else:
+    # 将空字符串转换为None，避免UNIQUE约束冲突
+    document_number = None
+```
+
+**编码规范遵循：**
+- ✅ 函数文档包含Args、Returns、Raises
+- ✅ 错误消息清晰的中文
+- ✅ 异常类型准确（ValueError for业务错误）
+- ✅ 日志信息详细
+
+**验收标准：**
+- ✅ 重复文号时抛出ValueError
+- ✅ 空文号转为None不报错
+- ✅ 新文号成功插入
+- ✅ 日志记录完整
+
+</details>
+
+---
 <details open>
 <summary><strong>✅ 已完成</strong></summary>
 

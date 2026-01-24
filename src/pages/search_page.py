@@ -79,11 +79,13 @@ def show():
 
         # 显示统计信息
         if st.session_state.search_results:
-            render_search_stats(len(st.session_state.search_results))
+            render_search_stats(st.session_state.search_results)
 
         # 显示搜索结果
         if st.session_state.search_results:
-            render_search_results(st.session_state.search_results, st.session_state.current_page)
+            total_results = len(st.session_state.search_results)
+            current_page = st.session_state.get("current_page", 0) + 1
+            render_search_results(st.session_state.search_results, total_results, current_page)
 
 
 def perform_search():

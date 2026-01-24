@@ -52,7 +52,44 @@ class PolicyDAO:
         self.db = get_db_manager()
 
     def create_policy(self, policy_data: Dict[str, Any]) -> int:
-        """创建政策记录"""
+        """创建政策记录
+        
+        Args:
+            policy_data: 政策数据字典，包含以下字段：
+                - title: 政策标题（必填）
+                - document_number: 文号（可选，但如果提供必须唯一）
+                - issuing_authority: 发文机关
+                - publish_date: 发布日期
+                - effective_date: 生效日期
+                - expiration_date: 失效日期
+                - policy_type: 政策类型
+                - region: 适用地区
+                - content: 政策全文
+                - summary: 摘要
+                - status: 状态（默认为'active'）
+                - file_path: 原始文件路径
+                - ragflow_doc_id: RAGFlow文档ID
+                
+        Returns:
+            int: 创建的政策ID
+            
+        Raises:
+            ValueError: 当document_number重复时
+            Exception: 其他数据库错误
+        """
+        # 检查document_number的唯一性（只有在提供了有效值时）
+        document_number = policy_data.get('document_number')
+        if document_number and document_number.strip() != '':
+            document_number = document_number.strip()
+            existing = self.get_policy_by_document_number(document_number)
+            if existing:
+                error_msg = f"文号 '{document_number}' 已存在，无法创建重复的政策"
+                logger.warning(f"创建政策失败 - {error_msg}")
+                raise ValueError(error_msg)
+        else:
+            # 将空字符串转换为None，避免UNIQUE约束冲突
+            document_number = None
+        
         query = """
         INSERT INTO policies
         (title, document_number, issuing_authority, publish_date, effective_date,
@@ -62,7 +99,7 @@ class PolicyDAO:
 
         params = (
             policy_data.get('title'),
-            policy_data.get('document_number'),
+            document_number,
             policy_data.get('issuing_authority'),
             policy_data.get('publish_date'),
             policy_data.get('effective_date'),
@@ -85,7 +122,7 @@ class PolicyDAO:
                 # 在同一连接上获取最后插入的ID
                 cursor.execute("SELECT last_insert_rowid()")
                 policy_id = cursor.fetchone()[0]
-                logger.info(f"创建政策成功: ID={policy_id}, 标题={policy_data.get('title')}")
+                logger.info(f"创建政策成功: ID={policy_id}, 标题={policy_data.get('title')}, 文号={document_number}")
                 return policy_id
         except Exception as e:
             logger.error(f"创建政策失败: {e}")

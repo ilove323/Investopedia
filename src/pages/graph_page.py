@@ -29,7 +29,7 @@ from src.components.graph_ui import (
     render_graph_path_finder
 )
 from src.database.policy_dao import PolicyDAO
-from src.models.graph import PolicyGraph, NodeType, RelationType
+from src.models.graph import PolicyGraph, NodeType, RelationType, GraphNode, GraphEdge
 
 
 def show():
@@ -84,7 +84,7 @@ def show():
     with col_main:
         # 图谱统计
         if st.session_state.graph:
-            render_graph_stats(st.session_state.graph)
+            render_graph_stats(st.session_state.graph.get_stats())
 
         st.divider()
 
@@ -117,73 +117,80 @@ def build_policy_graph():
 
         # 添加政策节点
         for policy in policies:
-            graph.add_node(
-                node_id=f"policy_{policy.id}",
-                label=policy.metadata.title,
+            node = GraphNode(
+                node_id=f"policy_{policy['id']}",
+                label=policy.get('title', '无标题'),
                 node_type=NodeType.POLICY,
                 attributes={
-                    "policy_type": policy.policy_type,
-                    "region": policy.metadata.region,
-                    "status": policy.status
+                    "policy_type": policy.get('policy_type'),
+                    "region": policy.get('region'),
+                    "status": policy.get('status')
                 }
             )
+            graph.add_node(node)
 
         # 添加发行机关节点
         authorities = set()
         for policy in policies:
-            if policy.metadata.issuing_authority:
-                authorities.add(policy.metadata.issuing_authority)
+            if policy.get('issuing_authority'):
+                authorities.add(policy['issuing_authority'])
 
         for authority in authorities:
-            graph.add_node(
+            node = GraphNode(
                 node_id=f"authority_{authority}",
                 label=authority,
                 node_type=NodeType.AUTHORITY
             )
+            graph.add_node(node)
 
             # 连接政策到发行机关
             for policy in policies:
-                if policy.metadata.issuing_authority == authority:
-                    graph.add_edge(
-                        source_id=f"policy_{policy.id}",
+                if policy.get('issuing_authority') == authority:
+                    edge = GraphEdge(
+                        source_id=f"policy_{policy['id']}",
                         target_id=f"authority_{authority}",
                         relation_type=RelationType.ISSUED_BY,
                         label="由...发布"
                     )
+                    graph.add_edge(edge)
 
         # 添加地区节点
         regions = set()
         for policy in policies:
-            if policy.metadata.region:
-                regions.add(policy.metadata.region)
+            if policy.get('region'):
+                regions.add(policy['region'])
 
         for region in regions:
-            graph.add_node(
+            node = GraphNode(
                 node_id=f"region_{region}",
                 label=region,
                 node_type=NodeType.REGION
             )
+            graph.add_node(node)
 
             # 连接政策到地区
             for policy in policies:
-                if policy.metadata.region == region:
-                    graph.add_edge(
-                        source_id=f"policy_{policy.id}",
+                if policy.get('region') == region:
+                    edge = GraphEdge(
+                        source_id=f"policy_{policy['id']}",
                         target_id=f"region_{region}",
                         relation_type=RelationType.APPLIES_TO,
                         label="适用于"
                     )
+                    graph.add_edge(edge)
 
-        # 添加政策关系
+        # 添加政策间关系
         for policy in policies:
-            for relation in policy.relations:
-                graph.add_edge(
-                    source_id=f"policy_{policy.id}",
-                    target_id=f"policy_{relation.target_policy_id}",
-                    relation_type=relation.relation_type,
-                    label=relation.relation_type,
-                    attributes={"confidence": relation.confidence}
+            relations = dao.get_policy_relations(policy['id'], as_source=True)
+            for relation in relations:
+                edge = GraphEdge(
+                    source_id=f"policy_{policy['id']}",
+                    target_id=f"policy_{relation.get('target_policy_id')}",
+                    relation_type=relation.get('relation_type'),
+                    label=relation.get('relation_type'),
+                    attributes={"confidence": relation.get('confidence')}
                 )
+                graph.add_edge(edge)
 
         return graph
 
@@ -200,25 +207,26 @@ def render_edge_details_section():
         col1, col2 = st.columns(2)
 
         with col1:
+            policies = dao.get_policies()
             source_policy = st.selectbox(
                 "源政策",
-                options=dao.get_policies(),
-                format_func=lambda p: p.metadata.title,
+                options=policies,
+                format_func=lambda p: p.get('title', '无标题'),
                 key="source_policy"
             )
 
         with col2:
             if source_policy:
-                relations = dao.get_policy_relations(source_policy.id, as_source=True)
+                relations = dao.get_policy_relations(source_policy['id'], as_source=True)
                 if relations:
                     target_policy = st.selectbox(
                         "目标政策",
                         options=relations,
-                        format_func=lambda r: f"关系: {r.relation_type}",
+                        format_func=lambda r: f"关系: {r.get('relation_type', '未知')}",
                         key="target_relation"
                     )
 
-                    with st.expander(f"📍 关系详情：{source_policy.metadata.title}", expanded=True):
+                    with st.expander(f"📍 关系详情：{source_policy.get('title', '无标题')}", expanded=True):
                         render_edge_details(target_policy)
                 else:
                     st.info("此政策没有关系链接")

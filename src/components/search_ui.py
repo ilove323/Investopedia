@@ -139,6 +139,10 @@ def render_search_results(results: List[Dict[str, Any]], total: int,
 
     # 显示结果
     for idx, result in enumerate(results, start=1):
+        # 确保result是字典
+        if not isinstance(result, dict):
+            continue
+            
         with st.container():
             col1, col2 = st.columns([5, 1])
 
@@ -154,18 +158,21 @@ def render_search_results(results: List[Dict[str, Any]], total: int,
                 if result.get('publish_date'):
                     meta_info.append(f"📅 {result['publish_date']}")
 
-                st.caption(" | ".join(meta_info))
+                if meta_info:
+                    st.caption(" | ".join(meta_info))
 
                 # 摘要
                 summary = result.get('summary', result.get('content', ''))
                 if isinstance(summary, str):
                     summary = summary[:200] + '...' if len(summary) > 200 else summary
-                st.write(summary)
+                    st.write(summary)
 
                 # 标签
                 if result.get('tags'):
-                    tag_str = " ".join([f"🔹 {tag.get('name', 'Tag')}" for tag in result['tags'][:3]])
-                    st.caption(tag_str)
+                    tag_list = result['tags']
+                    if isinstance(tag_list, list):
+                        tag_str = " ".join([f"🔹 {tag.get('name', 'Tag') if isinstance(tag, dict) else tag}" for tag in tag_list[:3]])
+                        st.caption(tag_str)
 
             with col2:
                 # 相关度分数（如果有）
@@ -173,8 +180,9 @@ def render_search_results(results: List[Dict[str, Any]], total: int,
                     st.metric("相关度", f"{result['score']:.1%}")
 
                 # 查看按钮
-                if st.button("查看", key=f"view_{result['id']}", use_container_width=True):
-                    st.session_state.selected_policy = result['id']
+                if result.get('id'):
+                    if st.button("查看", key=f"view_{result['id']}", use_container_width=True):
+                        st.session_state.selected_policy = result['id']
 
         st.divider()
 
@@ -209,26 +217,31 @@ def render_search_filters_sidebar() -> Dict[str, Any]:
     在侧边栏渲染搜索过滤器
 
     Returns:
-        过滤条件字典
+        过滤条件字典，包含policy_type, region, status, date_from, date_to
     """
+    filters = {
+        "policy_type": None,
+        "region": None,
+        "status": None,
+        "date_from": None,
+        "date_to": None
+    }
+
     with st.sidebar:
         st.subheader("📊 搜索过滤")
 
-        filters = {}
-
         # 政策类型
         st.write("**政策类型**")
-        type_filter = st.checkbox("专项债", key="type_special_bonds")
-        if type_filter:
-            filters['special_bonds'] = True
-
-        type_filter = st.checkbox("特许经营", key="type_franchise")
-        if type_filter:
-            filters['franchise'] = True
-
-        type_filter = st.checkbox("数据资产", key="type_data_assets")
-        if type_filter:
-            filters['data_assets'] = True
+        selected_types = []
+        if st.checkbox("特别国债", key="type_special_bonds"):
+            selected_types.append('special_bonds')
+        if st.checkbox("特许经营", key="type_franchise"):
+            selected_types.append('franchise')
+        if st.checkbox("数据资产", key="type_data_assets"):
+            selected_types.append('data_assets')
+        
+        if selected_types:
+            filters['policy_type'] = selected_types[0]  # 取第一个作为主要过滤
 
         st.divider()
 
@@ -237,65 +250,71 @@ def render_search_filters_sidebar() -> Dict[str, Any]:
         regions = st.multiselect(
             "选择地区",
             ["全国", "北京", "上海", "广东", "浙江"],
-            key="region_filter"
+            key="region_filter",
+            label_visibility="collapsed"
         )
         if regions:
-            filters['regions'] = regions
+            filters['region'] = regions[0]  # 取第一个作为主要过滤
 
         st.divider()
 
         # 状态过滤
         st.write("**状态**")
-        status_active = st.checkbox("有效", value=True, key="status_active")
-        status_expired = st.checkbox("失效", key="status_expired")
-        status_expiring = st.checkbox("即将失效", key="status_expiring")
-
         statuses = []
-        if status_active:
+        if st.checkbox("有效", value=True, key="status_active"):
             statuses.append('active')
-        if status_expired:
+        if st.checkbox("失效", key="status_expired"):
             statuses.append('expired')
-        if status_expiring:
+        if st.checkbox("即将失效", key="status_expiring"):
             statuses.append('expiring_soon')
 
         if statuses:
-            filters['statuses'] = statuses
+            filters['status'] = statuses[0]  # 取第一个作为主要过滤
 
         st.divider()
 
         # 日期范围
         st.write("**发布日期**")
-        date_from = st.date_input("从", key="date_from")
-        date_to = st.date_input("到", key="date_to")
-
-        if date_from or date_to:
-            filters['date_from'] = date_from
-            filters['date_to'] = date_to
+        try:
+            date_range = st.date_input("选择日期范围", value=[], key="date_range")
+            if isinstance(date_range, (list, tuple)) and len(date_range) >= 2:
+                filters['date_from'] = date_range[0]
+                filters['date_to'] = date_range[1]
+        except Exception:
+            pass
 
         return filters
 
 
-def render_search_stats(stats: Dict[str, Any]) -> None:
+def render_search_stats(results: List[Dict[str, Any]]) -> None:
     """
     渲染搜索统计
 
     Args:
-        stats: 统计数据
+        results: 搜索结果列表
     """
+    if not results:
+        return
+    
+    # 统计各政策类型的数量
+    stats_by_type = {}
+    for r in results:
+        policy_type = r.get('policy_type', 'unknown')
+        stats_by_type[policy_type] = stats_by_type.get(policy_type, 0) + 1
+    
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("总政策数", stats.get('total', 0))
+        st.metric("搜索结果", len(results))
 
     with col2:
-        by_type = stats.get('by_type', {})
-        special_bonds = by_type.get('special_bonds', 0)
-        st.metric("专项债", special_bonds)
+        special_bonds = stats_by_type.get('special_bonds', 0)
+        st.metric("特别国债", special_bonds)
 
     with col3:
-        franchise = by_type.get('franchise', 0)
+        franchise = stats_by_type.get('franchise', 0)
         st.metric("特许经营", franchise)
 
     with col4:
-        data_assets = by_type.get('data_assets', 0)
+        data_assets = stats_by_type.get('data_assets', 0)
         st.metric("数据资产", data_assets)
