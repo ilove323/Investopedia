@@ -1,5 +1,24 @@
 """
 标签数据模型
+==========
+定义标签相关的数据结构，支持三级标签体系和标签关联。
+
+核心类：
+- TagLevel：标签级别枚举（1级、2级、3级）
+- PolicyTypeCategory：政策类型分类（专项债、特许经营、数据资产）
+- Tag：单个标签对象，支持树形结构（父子关系）
+- TagHierarchy：标签体系管理，支持查找、过滤、遍历
+- TagAssociation：标签与政策的关联关系
+
+使用示例：
+    from src.models.tag import Tag, TagHierarchy
+
+    tag1 = Tag(id=1, name='专项债', level=1, policy_type='special_bonds')
+    tag2 = Tag(id=2, name='发行管理', level=2, parent_id=1, policy_type='special_bonds')
+
+    hierarchy = TagHierarchy()
+    hierarchy.add_tag(tag1)
+    tag1.add_child(tag2)
 """
 from dataclasses import dataclass, asdict, field
 from typing import Optional, List, Dict, Any

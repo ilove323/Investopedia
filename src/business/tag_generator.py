@@ -1,6 +1,25 @@
 """
 标签生成器
-从政策文本自动生成标签
+==========
+从政策文本自动生成标签，支持三级标签体系和置信度评分。
+
+核心功能：
+- 自动标签提取：通过关键词匹配识别相关标签
+- 手动标签合并：合并自动生成的标签和用户指定的标签
+- 置信度评分：为每个标签计算匹配置信度（0-1）
+- 标签推荐：为文本推荐最相关的标签
+
+三级标签体系：
+- 专项债：发行管理、资金使用、偿还机制、绩效评价
+- 特许经营：适用范围、操作流程、运营管理、风险管理
+- 数据资产：会计处理、交易流转、合规管理、价值管理
+
+使用示例：
+    from src.business.tag_generator import get_tag_generator
+
+    generator = get_tag_generator()
+    tags = generator.generate_tags(content='政策文本...')
+    # 返回：[{'id': 1, 'name': '发行管理', 'level': 2, 'confidence': 0.8, 'source': 'auto'}, ...]
 """
 import logging
 import re
@@ -11,9 +30,18 @@ logger = logging.getLogger(__name__)
 
 
 class TagGenerator:
-    """标签生成器"""
+    """
+    标签生成器
 
-    # 三级标签体系定义
+    负责从政策文本自动生成标签，支持：
+    - 基于关键词的自动标签提取
+    - 置信度评分
+    - 手动标签合并
+    - 标签推荐
+    """
+
+    # ===== 三级标签体系定义 =====
+    # 说明：包含三个主要政策类型及其子分类
     TAG_HIERARCHY = {
         'special_bonds': {
             'name': '专项债',

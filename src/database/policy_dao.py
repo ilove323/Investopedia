@@ -1,6 +1,39 @@
 """
 政策数据访问对象（DAO）
-负责政策相关数据库操作
+====================
+提供数据库操作接口，实现政策、标签、关系、日志等表的CRUD操作。
+
+核心类：
+- PolicyDAO：政策数据访问对象
+
+核心方法：
+- 政策操作：create_policy, get_policy_by_id, get_policies, update_policy, delete_policy
+- 标签操作：add_policy_tag, get_policy_tags
+- 关系操作：add_policy_relation, get_policy_relations
+- 日志操作：log_processing, get_processing_logs
+- 统计操作：get_stats, count_policies
+
+使用示例：
+    from src.database.policy_dao import get_policy_dao
+
+    dao = get_policy_dao()
+
+    # 创建政策
+    policy_id = dao.create_policy({
+        'title': '某政策',
+        'document_number': '财预〔2024〕1号',
+        'policy_type': 'special_bonds',
+        'content': '...'
+    })
+
+    # 查询政策
+    policy = dao.get_policy_by_id(policy_id)
+
+    # 添加标签
+    dao.add_policy_tag(policy_id, tag_id=1, confidence=0.9)
+
+    # 获取统计
+    stats = dao.get_stats()
 """
 import logging
 from typing import List, Optional, Dict, Any

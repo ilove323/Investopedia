@@ -1,6 +1,22 @@
 """
 元数据提取器
-从政策文本中自动提取元数据（文号、发文机关、日期等）
+==========
+从政策文本中自动提取元数据（文号、发文机关、日期、政策类型、地区、摘要等）。
+
+核心功能：
+- 提取文号（财预〔2024〕1号等格式）
+- 提取发文机关（财政部、国家发改委等）
+- 提取关键日期（发布日期、生效日期、失效日期）
+- 识别政策类型（专项债、特许经营、数据资产）
+- 提取适用地区
+- 生成政策摘要
+
+使用示例：
+    from src.business.metadata_extractor import get_metadata_extractor
+
+    extractor = get_metadata_extractor()
+    metadata = extractor.extract_all(policy_text)
+    # 返回：{'document_number': '...',  'issuing_authority': '...', 'policy_type': '...', ...}
 """
 import re
 import logging
@@ -11,9 +27,15 @@ logger = logging.getLogger(__name__)
 
 
 class MetadataExtractor:
-    """元数据提取器"""
+    """
+    元数据提取器
 
-    # 文号提取的正则表达式集合
+    从政策文本中提取结构化数据，使用正则表达式和关键词匹配。
+    支持多种文号格式、日期格式、政策类型识别。
+    """
+
+    # ===== 文号提取的正则表达式集合 =====
+    # 支持财政部、国务院等多种文号格式
     DOCUMENT_NUMBER_PATTERNS = [
         r'(财预|财库)〔\d{4}〕\d+号',  # 财政部文号
         r'(财办|财税)〔\d{4}〕\d+号',  # 财税文号

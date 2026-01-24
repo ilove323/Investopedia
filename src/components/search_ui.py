@@ -1,5 +1,22 @@
 """
 搜索UI组件
+==========
+提供搜索页面的各种UI组件，包括搜索栏、高级搜索面板、结果展示、过滤器、统计等。
+
+核心组件：
+- render_search_bar：搜索栏（输入框 + 搜索按钮）
+- render_advanced_search_panel：高级搜索面板（政策类型、地区、状态、日期、排序）
+- render_search_results：搜索结果展示（分页、卡片列表）
+- render_search_filters_sidebar：侧边栏过滤器（政策类型、地区、状态、日期）
+- render_search_stats：搜索统计（总数、各类型政策数等）
+
+使用示例：
+    from src.components.search_ui import render_search_bar, render_search_results
+
+    query = render_search_bar()
+    if query:
+        results = search_policies(query)
+        total_pages, current_page = render_search_results(results, total=100)
 """
 import streamlit as st
 from typing import Optional, Dict, Any, List, Tuple

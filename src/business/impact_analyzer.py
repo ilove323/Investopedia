@@ -1,6 +1,27 @@
 """
 影响分析器
-分析政策的影响范围、程度和实施建议
+==========
+分析政策的影响范围、程度、影响对象和实施建议。
+
+核心功能：
+- 分析影响范围：全国、区域、行业、企业、个人等
+- 分析影响程度：高（严格约束）、中（有指导性）、低（参考意义）
+- 分析影响对象：政府、企业、市场、金融、技术等
+- 提取关键影响点：从文本中提取关键的政策影响
+- 生成实施建议：根据政策类型生成针对性的实施建议
+- 比较多政策：对多个政策的影响进行对比分析
+
+使用示例：
+    from src.business.impact_analyzer import get_impact_analyzer
+
+    analyzer = get_impact_analyzer()
+    result = analyzer.analyze_impact(policy_id=1)
+    # 返回：{
+    #     'impact_scope': {'primary_scope': 'national', ...},
+    #     'impact_intensity': {'primary_intensity': '高', ...},
+    #     'impact_targets': {'primary_targets': ['government', 'enterprise'], ...},
+    #     'implementation_suggestions': ['建立...', '完善...', ...]
+    # }
 """
 import logging
 import re
@@ -20,9 +41,17 @@ class ImpactLevel(Enum):
 
 
 class ImpactAnalyzer:
-    """影响分析器"""
+    """
+    影响分析器
 
-    # 影响范围关键词
+    分析政策对不同维度的影响：
+    - 范围维度：影响覆盖的地理或行业范围
+    - 程度维度：政策约束力强弱
+    - 对象维度：主要影响主体
+    """
+
+    # ===== 影响范围关键词 =====
+    # 说明：用于判断政策影响的地理或行业范围
     IMPACT_SCOPE_KEYWORDS = {
         'national': ['全国', '全社会', '全行业', '国家'],
         'regional': ['地方', '区域', '省份', '市'],

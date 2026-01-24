@@ -1,5 +1,24 @@
 """
 语音UI组件
+==========
+提供语音问答页面的各种UI组件，包括语音输入、转写结果、问答、历史、设置等。
+
+核心组件：
+- render_voice_input：语音输入（实时录音 或 文件上传）
+- render_voice_settings：语音设置（语言、采样率、声道、最大时长）
+- render_transcription_result：转写结果展示（识别文本、分段信息、操作按钮）
+- render_qa_result：问答结果（答案、相关政策推荐）
+- render_voice_history：语音历史记录（最近10条）
+- render_voice_tips：使用提示和最佳实践
+- render_voice_stats：语音统计（提问数、成功率、平均耗时、最后使用时间）
+
+使用示例：
+    from src.components.voice_ui import render_voice_input, render_transcription_result
+
+    audio_data = render_voice_input()
+    if audio_data:
+        result = transcribe_audio(audio_data)
+        render_transcription_result(result)
 """
 import streamlit as st
 from typing import Optional, Dict, Any

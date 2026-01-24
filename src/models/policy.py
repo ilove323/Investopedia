@@ -1,5 +1,21 @@
 """
 政策数据模型
+==========
+定义政策相关的数据结构，包括政策元数据、内容、类型、状态等。
+
+核心类：
+- PolicyType：政策类型枚举（专项债、特许经营、数据资产）
+- PolicyStatus：政策状态枚举（活跃、过期、更新、即将过期）
+- PolicyMetadata：政策元数据（标题、文号、机关、日期、地区等）
+- PolicyContent：政策内容（全文和摘要）
+- Policy：完整的政策对象
+
+使用示例：
+    from src.models.policy import Policy, PolicyMetadata, PolicyContent, PolicyType, PolicyStatus
+
+    metadata = PolicyMetadata(title='某政策', document_number='财预〔2024〕1号')
+    content = PolicyContent(content='政策全文...', summary='摘要...')
+    policy = Policy(metadata=metadata, content=content, policy_type=PolicyType.SPECIAL_BONDS)
 """
 from dataclasses import dataclass, asdict
 from typing import Optional, List, Dict, Any

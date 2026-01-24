@@ -1,5 +1,29 @@
 """
 文本处理工具
+==========
+提供文本清洗、分析、转换等通用工具函数。
+
+核心功能：
+- 文本清洗：清除多余空格、控制字符、HTML标签
+- 文本分析：提取句子、关键词、计算相似度、评估质量
+- 文本转换：截断、分块、高亮关键词、标准化空格
+- 日期解析：支持多种日期格式的解析
+- 格式化：电话号码、数字等格式化
+
+使用示例：
+    from src.utils.text_utils import TextProcessor
+
+    # 清洗文本
+    text = TextProcessor.clean_text('  原始   文本  ')
+
+    # 提取关键词
+    keywords = TextProcessor.extract_keywords('政策文本...', max_keywords=5)
+
+    # 计算相似度
+    similarity = TextProcessor.similar_texts(text1, text2)
+
+    # 检查文本质量
+    quality = TextProcessor.check_text_quality('文本...')
 """
 import re
 import logging
@@ -10,7 +34,12 @@ logger = logging.getLogger(__name__)
 
 
 class TextProcessor:
-    """文本处理器"""
+    """
+    文本处理器
+
+    提供文本清洗、分析、转换等静态方法。
+    支持中文和英文的处理。
+    """
 
     @staticmethod
     def clean_text(text: str) -> str:

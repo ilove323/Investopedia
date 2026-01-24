@@ -1,5 +1,29 @@
 """
 政策卡片组件
+==========
+提供政策展示的各种UI组件，包括卡片、详情页、列表、编辑表单等。
+
+核心组件：
+- render_policy_card：政策卡片（简洁展示）- 标题、文号、机关、日期、摘要、标签、状态、操作按钮
+- render_policy_detail：政策详情页面 - 完整展示所有政策信息，包括时效性分析、相关政策等
+- render_policy_list：政策列表 - 多个卡片的列表展示
+- render_policy_form：政策编辑表单 - 用于创建或编辑政策
+
+功能特性：
+- 实时状态显示（有效、失效、即将失效、已更新）
+- 时效性分析（集成ValidityChecker）
+- 相关政策链接（集成PolicyDAO）
+- 支持回调函数（详情、编辑、删除）
+- 支持编辑表单提交
+
+使用示例：
+    from src.components.policy_card import render_policy_card, render_policy_detail
+
+    # 显示卡片
+    render_policy_card(policy_data, on_click_details=show_details)
+
+    # 显示详情
+    render_policy_detail(policy_data)
 """
 import streamlit as st
 from typing import Optional, Callable, Dict, Any

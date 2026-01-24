@@ -1,5 +1,24 @@
 """
 知识图谱UI组件
+=============
+提供知识图谱页面的各种UI组件，包括图谱渲染、控制面板、统计、搜索、导出等。
+
+核心组件：
+- render_graph_controls：图谱控制面板（视图类型、布局算法、节点/边过滤）
+- render_network_graph：网络图渲染（Pyvis）
+- render_graph_stats：图谱统计（节点数、边数、密度、连通分量、直径）
+- render_node_details：节点详情（ID、标签、类型、属性、度数）
+- render_edge_details：边详情（源、目标、关系类型、描述）
+- render_graph_export：导出选项（HTML、JSON、SVG、PNG）
+- render_graph_search：图谱搜索框
+- render_graph_filter_by_type：按节点类型过滤
+- render_graph_path_finder：最短路径查询
+
+使用示例：
+    from src.components.graph_ui import render_network_graph, render_graph_controls
+
+    controls = render_graph_controls()
+    render_network_graph(nx_graph)
 """
 import streamlit as st
 from typing import Optional, Dict, Any

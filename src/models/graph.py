@@ -1,5 +1,33 @@
 """
 知识图谱数据模型
+=============
+定义知识图谱的数据结构，基于NetworkX实现政策关系网络的表示和操作。
+
+核心类：
+- NodeType：节点类型（政策、机关、地区、概念、项目）
+- RelationType：关系类型（发布、适用、引用、影响、替代、修订、相关）
+- GraphNode：图谱节点，代表一个对象（政策、机关等）
+- GraphEdge：图谱边，代表两个对象间的关系
+- PolicyGraph：政策图谱，基于NetworkX的完整实现
+
+功能特性：
+- 支持添加/删除节点和边
+- 支持路径查询、连通分量、自我网络等图论算法
+- 支持图谱统计和子图提取
+- 支持序列化为字典格式
+
+使用示例：
+    from src.models.graph import PolicyGraph, GraphNode, GraphEdge, NodeType, RelationType
+
+    graph = PolicyGraph()
+    node1 = GraphNode(node_id='policy_1', label='政策A', node_type=NodeType.POLICY)
+    node2 = GraphNode(node_id='auth_1', label='财政部', node_type=NodeType.AUTHORITY)
+
+    graph.add_node(node1)
+    graph.add_node(node2)
+
+    edge = GraphEdge(source_id='policy_1', target_id='auth_1', relation_type=RelationType.ISSUED_BY)
+    graph.add_edge(edge)
 """
 from dataclasses import dataclass, asdict
 from typing import Optional, Dict, List, Any, Set, Tuple
