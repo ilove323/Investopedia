@@ -1059,4 +1059,163 @@ with tab2:
 
 ---
 
+## 第五部分：客户端模块使用指南
+
+### 外部服务集成已完成（100%）
+
+**三个客户端模块完整实现（1,384行代码）：**
+
+#### 1. API工具库（api_utils.py - 751行）
+
+```python
+"""通用HTTP客户端库，为RAGFlow和Whisper提供基础通信层"""
+
+from src.services.api_utils import APIClient, APIError, retry_on_exception
+
+# ✅ 创建客户端
+client = APIClient(
+    base_url='http://localhost:9380',
+    timeout=30,
+    retry_times=3,
+    retry_delay=1
+)
+
+# ✅ GET请求
+try:
+    data = client.get('/api/health')
+    print(data)
+except APIError as e:
+    print(f"请求失败: {e}")
+
+# ✅ POST请求（JSON数据）
+response = client.post(
+    '/api/documents',
+    json={'title': '政策', 'content': '...'},
+    headers={'Content-Type': 'application/json'}
+)
+
+# ✅ 为函数添加重试机制
+@retry_on_exception(max_retries=3, delay=1)
+def some_api_call():
+    return client.get('/api/data')
+```
+
+**核心类说明：**
+- `APIClient`：HTTP请求、超时控制、自动重试
+- `APIError`：统一的异常处理
+- `retry_on_exception`：装饰器，为任意函数添加重试机制
+
+#### 2. RAGFlow客户端（ragflow_client.py - 322行）
+
+```python
+"""RAGFlow服务客户端 - 语义搜索和问答"""
+
+from src.services.ragflow_client import get_ragflow_client
+
+# ✅ 获取全局客户端（单例模式）
+client = get_ragflow_client()
+
+# ✅ 健康检查
+if client.check_health():
+    print("RAGFlow服务正常")
+
+# ✅ 上传文档
+doc_id = client.upload_document(
+    filename="policy.pdf",
+    content=b"PDF二进制内容..."
+)
+
+# ✅ 语义搜索
+results = client.search(
+    query="特别国债政策",
+    top_k=10,
+    search_type="hybrid"  # 或 "vector", "keyword"
+)
+# 返回：[{'id': '...', 'score': 0.95, 'content': '...'}, ...]
+
+# ✅ 问答
+qa_result = client.qa(
+    query="特别国债的发行目的是什么？",
+    knowledge_base_id="policy_kb"
+)
+# 返回：{'answer': '...', 'sources': [...]}
+
+# ✅ 删除文档
+client.delete_document(doc_id)
+
+# ✅ 上下文管理器
+with get_ragflow_client() as client:
+    results = client.search("查询")
+    # 自动关闭连接
+```
+
+**主要方法：**
+- `check_health()` - 验证服务连接
+- `upload_document(filename, content)` - 上传文档
+- `search(query, top_k, search_type)` - 语义搜索
+- `qa(query, knowledge_base_id)` - 问答
+- `delete_document(doc_id)` - 删除文档
+
+#### 3. Whisper客户端（whisper_client.py - 311行）
+
+```python
+"""Whisper客户端 - 语音转文字"""
+
+from src.services.whisper_client import get_whisper_client
+
+# ✅ 获取全局客户端（单例模式）
+client = get_whisper_client()
+
+# ✅ 健康检查
+if client.check_health():
+    print("Whisper服务正常")
+
+# ✅ 转录音频文件
+result = client.transcribe(
+    audio_file="audio.wav",
+    language="zh",  # 或 "en", "fr" 等
+    task="transcribe"  # 或 "translate"
+)
+# 返回：{'text': '转录的文字', 'duration': 5.2, ...}
+
+# ✅ 上传并转录
+text = client.transcribe(
+    audio_file="path/to/audio.mp3"
+)
+
+# ✅ 上下文管理器
+with get_whisper_client() as client:
+    text = client.transcribe("audio.wav")
+    # 自动关闭连接
+```
+
+**主要方法：**
+- `check_health()` - 验证服务连接
+- `transcribe(audio_file, language, task)` - 转录音频
+- 支持的格式：WAV, MP3, M4A, FLAC, OGG
+
+### 重试机制说明
+
+所有客户端都内置了自动重试机制：
+
+```python
+# 自动重试规则：
+# - HTTP 429：Too Many Requests
+# - HTTP 500：Internal Server Error
+# - HTTP 502：Bad Gateway
+# - HTTP 503：Service Unavailable
+# - HTTP 504：Gateway Timeout
+
+# 重试配置（在ConfigLoader中配置）：
+config.ragflow_retry_times = 3  # 重试次数
+config.ragflow_retry_delay = 1  # 初始延迟（秒）
+
+# 延迟递增规则：
+# 第1次：立即重试
+# 第2次：延迟1秒
+# 第3次：延迟2秒（backoff_factor=2）
+```
+
+---
+
 **这个文档提供了实现过程中的具体指导。在实现每个功能时，参考相应的代码模板和最佳实践。**
