@@ -495,8 +495,8 @@ app.py还在尝试从已删除的`config.app_config`模块导入配置。需要�
 
 **任务号：TASK-1.6**
 **优先级：🔴 最高**
-**工作量：40分钟**
-**所属文件：** `src/utils/logger.py`, `src/utils/file_utils.py`, `src/utils/text_utils.py`
+**工作量：30分钟**
+**所属文件：** `src/utils/logger.py`, `src/utils/file_utils.py`, `src/utils/summarizer.py`
 
 **需要添加的注释：**
 
@@ -510,7 +510,7 @@ app.py还在尝试从已删除的`config.app_config`模块导入配置。需要�
 - 文件类型验证的规则
 - 文件大小限制的说明
 
-对于 **text_utils.py**：
+对于 **summarizer.py**：
 - 文本处理的各个工具函数
 - 正则表达式的含义
 - 处理逻辑的说明

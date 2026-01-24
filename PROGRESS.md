@@ -356,8 +356,9 @@ graph.add_node(node_id=..., label=...)  # ✗ 不支持关键字参数
 
 **全部完成：**
 - ✅ `src/utils/logger.py` - 完整实现
-- ✅ `src/utils/file_utils.py` - 完整实现
-- ✅ `src/utils/text_utils.py` - 完整实现
+- ✅ `src/utils/file_utils.py` - 完整实现  
+- ✅ `src/utils/summarizer.py` - 完整实现
+- ❌ `src/utils/text_utils.py` - 已删除（RAGFlow替代）
 
 ---
 

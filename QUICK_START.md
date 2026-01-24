@@ -151,9 +151,8 @@ Pyvis可视化
 ### **数据处理** (src/utils/)
 | 文件 | 主要函数 | 说明 |
 |------|---------|------|
-| summarizer.py | generate_summary(text) | DeepSeek/RAGFlow 切换 |
+| summarizer.py | generate_summary(text) | RAGFlow摘要生成 |
 | file_utils.py | 文件处理 | 上传验证、大小检查 |
-| text_utils.py | 文本处理 | 清洗、分割 |
 
 ### **数据访问** (src/database/)
 | 文件 | 返回类型 | 说明 |

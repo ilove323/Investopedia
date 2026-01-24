@@ -251,7 +251,7 @@ Investopedia/
 │   └── utils/                      # 工具函数
 │       ├── logger.py              # 日志工具
 │       ├── file_utils.py          # 文件工具
-│       └── text_utils.py          # 文本工具
+│       └── summarizer.py          # 摘要生成
 │
 ├── venv/                           # 虚拟环境（已添加到.gitignore）
 ├── data/                           # 数据目录（已添加到.gitignore）

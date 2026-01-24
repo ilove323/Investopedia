@@ -57,10 +57,10 @@ WHISPER_FILE_CONFIG = config.whisper_file_config  # 文件配置（大小、格�
 
 # Whisper API端点定义
 WHISPER_ENDPOINTS = {
-    'health': '/api/health',
-    'transcribe': '/api/transcribe',
-    'translate': '/api/translate',
-    'models': '/api/models'
+    'health': '/',  # 使用根路径作为健康检查，返回200表示服务正常
+    'transcribe': '/asr',  # 语音识别端点
+    'translate': '/asr',  # 翻译也使用asr端点
+    'detect_language': '/detect-language'  # 语言检测
 }
 
 # Whisper API请求头
@@ -92,22 +92,42 @@ class WhisperClient:
     def _check_connection(self):
         """检查与Whisper的连接"""
         try:
-            health_endpoint = WHISPER_ENDPOINTS['health']
-            is_healthy = self.client.check_health(health_endpoint)
-            if is_healthy:
+            # 使用本地的check_health方法避免JSON警告
+            if self.check_health():
                 logger.info("Whisper服务连接成功")
             else:
                 logger.warning("Whisper服务可能不可用")
         except Exception as e:
             logger.warning(f"Whisper服务连接检查失败: {e}")
 
+    def _whisper_post(self, url: str, files: Dict, headers: Dict) -> str:
+        """专门为Whisper API设计的POST请求方法，直接返回文本响应"""
+        import requests
+        try:
+            # 直接使用requests，避免api_utils的JSON解析警告
+            full_url = f"{self.client.base_url}{url}"
+            response = requests.post(
+                full_url,
+                files=files,
+                headers=headers,
+                timeout=self.client.timeout
+            )
+            response.raise_for_status()
+            return response.text.strip()  # 直接返回文本内容
+        except requests.exceptions.RequestException as e:
+            raise WhisperError(f"Whisper API请求失败: {e}")
+
     def check_health(self) -> bool:
         """检查Whisper服务健康状态"""
         try:
+            # 使用直接的requests调用避免JSON解析警告
+            import requests
             endpoint = WHISPER_ENDPOINTS['health']
-            self.client.get(endpoint, headers=self.headers)
+            full_url = f"{self.client.base_url}{endpoint}"
+            response = requests.get(full_url, headers=self.headers, timeout=self.client.timeout)
+            response.raise_for_status()
             return True
-        except APIError:
+        except Exception:
             return False
 
     def transcribe(self, audio_file_path: str,
@@ -141,30 +161,43 @@ class WhisperClient:
             if suffix not in WHISPER_FILE_CONFIG['supported_formats']:
                 raise WhisperError(f"不支持的文件格式: {suffix}")
 
-            # 准备请求
+            # 构建查询参数
+            params = {
+                'task': task,
+                'language': language,
+                'encode': True,
+                'output': 'json'  # 请求JSON格式输出
+            }
+            
+            # 准备文件
             with open(audio_file_path, 'rb') as f:
                 files = {
                     'audio_file': (file_path.name, f)
                 }
-
-                params = {
-                    'task': task,
-                    'language': language,
-                    'word_timestamps': 'true' if word_timestamps else 'false'
-                }
-
+                
+                # 构建URL + 查询参数
                 endpoint = WHISPER_ENDPOINTS['transcribe']
+                query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+                url = f"{endpoint}?{query_string}"
+                
                 logger.info(f"开始转写音频文件: {file_path.name}")
 
-                response = self.client.post(
-                    endpoint,
-                    headers=self.headers,
+                # 使用专门的Whisper POST方法避免JSON解析警告
+                response_text = self._whisper_post(
+                    url,
                     files=files,
-                    params=params
+                    headers=self.headers
                 )
 
+                # 包装文本响应为JSON格式
+                processed_response = {
+                    "text": response_text,
+                    "language": language,
+                    "task": task,
+                    "segments": []
+                }
                 logger.info(f"音频转写成功: {file_path.name}")
-                return response
+                return processed_response
 
         except APIError as e:
             logger.error(f"转写失败: {e}")
@@ -195,28 +228,41 @@ class WhisperClient:
             if len(audio_bytes) > WHISPER_FILE_CONFIG['max_file_size']:
                 raise WhisperError(f"音频数据过大: {len(audio_bytes) / 1024 / 1024:.2f}MB")
 
-            files = {
-                'audio_file': (file_name, audio_bytes)
-            }
-
+            # 构建查询参数
             params = {
                 'task': task,
                 'language': language,
-                'word_timestamps': 'true' if word_timestamps else 'false'
+                'encode': True,
+                'output': 'json'  # 请求JSON格式输出
             }
-
+            
+            files = {
+                'audio_file': (file_name, audio_bytes)
+            }
+            
+            # 构建URL + 查询参数
             endpoint = WHISPER_ENDPOINTS['transcribe']
+            query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+            url = f"{endpoint}?{query_string}"
+            
             logger.info(f"开始转写音频: {file_name}")
 
-            response = self.client.post(
-                endpoint,
-                headers=self.headers,
+            # 使用专门的Whisper POST方法避免JSON解析警告
+            response_text = self._whisper_post(
+                url,
                 files=files,
-                params=params
+                headers=self.headers
             )
 
+            # 包装文本响应为JSON格式
+            processed_response = {
+                "text": response_text,
+                "language": language,
+                "task": task,
+                "segments": []
+            }
             logger.info(f"音频转写成功: {file_name}")
-            return response
+            return processed_response
 
         except APIError as e:
             logger.error(f"从字节转写失败: {e}")
@@ -232,20 +278,54 @@ class WhisperClient:
         Returns:
             语言代码列表
         """
+        # Whisper API通常不提供语言列表端点，返回常用语言代码
+        supported_languages = [
+            "zh", "en", "ja", "ko", "es", "fr", "de", "it", "pt", "ru", "ar"
+        ]
+        logger.info(f"返回支持的语言列表: {supported_languages}")
+        return supported_languages
+
+    def _process_response(self, response) -> Dict[str, Any]:
+        """
+        处理API响应，统一格式
+        
+        Args:
+            response: API原始响应
+            
+        Returns:
+            标准化的JSON响应
+        """
         try:
-            endpoint = WHISPER_ENDPOINTS['languages']
-            response = self.client.get(endpoint, headers=self.headers)
-
-            languages = response.get('languages', []) if isinstance(response, dict) else response
-            logger.info(f"获取支持的语言列表: {languages}")
-            return languages
-
-        except APIError as e:
-            logger.error(f"获取语言列表失败: {e}")
-            return ["zh", "en"]  # 返回默认语言
+            # 如果响应已经是字典格式，直接返回
+            if isinstance(response, dict):
+                return response
+            
+            # 如果响应是字符串（文本格式），包装成JSON
+            if isinstance(response, str):
+                logger.info("响应是文本格式，包装成JSON")
+                return {
+                    "text": response.strip(),
+                    "language": "detected",
+                    "segments": []
+                }
+            
+            # 如果有其他格式，尝试转换为字符串
+            text_content = str(response).strip()
+            logger.info("响应不是JSON格式，转换为文本")
+            return {
+                "text": text_content,
+                "language": "detected", 
+                "segments": []
+            }
+            
         except Exception as e:
-            logger.error(f"获取语言列表异常: {e}")
-            return ["zh", "en"]
+            logger.error(f"处理响应格式失败: {e}")
+            return {
+                "text": "",
+                "language": "unknown",
+                "segments": [],
+                "error": str(e)
+            }
 
     def extract_text(self, result: Dict[str, Any]) -> str:
         """
