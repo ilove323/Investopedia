@@ -90,6 +90,22 @@ def render_network_graph(graph: nx.Graph, title: str = "知识图谱") -> None:
         title: 图谱标题
     """
     try:
+        # 检查图是否为空
+        if graph.number_of_nodes() == 0:
+            st.warning("🔍 图谱为空，请先添加政策数据或调整筛选条件")
+            st.info("""
+            可能的原因：
+            - 数据库中没有政策数据
+            - 筛选条件过于严格
+            - 数据加载失败
+            
+            建议：
+            1. 检查是否有政策数据
+            2. 调整节点类型和关系类型筛选
+            3. 查看错误日志
+            """)
+            return
+
         # 创建Pyvis网络
         net = Network(
             height="600px",
@@ -130,6 +146,10 @@ def render_graph_stats(stats: Dict[str, Any]) -> None:
         stats: 统计数据
     """
     with st.expander("📊 图谱统计", expanded=False):
+        # 检查是否有错误
+        if 'error' in stats:
+            st.error(f"统计计算错误: {stats['error']}")
+        
         col1, col2, col3, col4 = st.columns(4)
 
         with col1:
@@ -140,7 +160,10 @@ def render_graph_stats(stats: Dict[str, Any]) -> None:
 
         with col3:
             density = stats.get('density', 0)
-            st.metric("密度", f"{density:.3f}")
+            if isinstance(density, (int, float)):
+                st.metric("密度", f"{density:.3f}")
+            else:
+                st.metric("密度", "N/A")
 
         with col4:
             components = stats.get('number_of_connected_components', 1)
@@ -148,8 +171,23 @@ def render_graph_stats(stats: Dict[str, Any]) -> None:
 
         # 直径
         diameter = stats.get('diameter')
-        if diameter:
+        if diameter is not None:
             st.write(f"**直径**: {diameter}")
+        elif stats.get('node_count', 0) > 1:
+            st.write("**直径**: 图不连通或计算失败")
+        else:
+            st.write("**直径**: N/A (节点数不足)")
+            
+        # 显示图谱健康状况
+        node_count = stats.get('node_count', 0)
+        edge_count = stats.get('edge_count', 0)
+        
+        if node_count == 0:
+            st.warning("⚠️ 图谱为空")
+        elif edge_count == 0:
+            st.warning("⚠️ 没有关系连接")
+        else:
+            st.success("✅ 图谱正常")
 
 
 def render_node_details(node: Dict[str, Any]) -> None:

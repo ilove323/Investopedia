@@ -95,11 +95,13 @@ def run_ragflow_tests():
     try:
         from test_ragflow_client import TestRAGFlowClient, TestRAGFlowAPI
         from test_ragflow_config_update import TestRAGFlowConfigUpdate
+        from test_data_sync import TestDataSyncService
         from final_verification import TestFinalVerification
         
         suite.addTest(loader.loadTestsFromTestCase(TestRAGFlowClient))
         suite.addTest(loader.loadTestsFromTestCase(TestRAGFlowAPI))
         suite.addTest(loader.loadTestsFromTestCase(TestRAGFlowConfigUpdate))
+        suite.addTest(loader.loadTestsFromTestCase(TestDataSyncService))
         suite.addTest(loader.loadTestsFromTestCase(TestFinalVerification))
     except ImportError as e:
         print(f"警告: 无法导入RAGFlow测试模块: {e}")
@@ -127,11 +129,31 @@ def run_api_exploration_tests():
     result = runner.run(suite)
     return result.wasSuccessful()
 
+def run_data_sync_tests():
+    """只运行数据同步测试"""
+    print("🔄 运行数据同步测试")
+    print("=" * 40)
+    
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    
+    # 加载数据同步测试
+    try:
+        from test_data_sync import TestDataSyncService, TestDataSyncIntegration
+        suite.addTest(loader.loadTestsFromTestCase(TestDataSyncService))
+        suite.addTest(loader.loadTestsFromTestCase(TestDataSyncIntegration))
+    except ImportError as e:
+        print(f"警告: 无法导入数据同步测试: {e}")
+    
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    return result.wasSuccessful()
+
 if __name__ == '__main__':
     import argparse
     
     parser = argparse.ArgumentParser(description='政策库系统测试运行器')
-    parser.add_argument('--type', choices=['all', 'config', 'ragflow', 'api'], 
+    parser.add_argument('--type', choices=['all', 'config', 'ragflow', 'api', 'sync'], 
                        default='all', help='测试类型')
     parser.add_argument('--verbose', '-v', action='store_true', 
                        help='详细输出')
@@ -150,5 +172,7 @@ if __name__ == '__main__':
         success = run_ragflow_tests()
     elif args.type == 'api':
         success = run_api_exploration_tests()
+    elif args.type == 'sync':
+        success = run_data_sync_tests()
     
     sys.exit(0 if success else 1)

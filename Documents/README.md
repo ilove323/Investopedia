@@ -1,9 +1,59 @@
 # 政策库知识库+知识图谱系统
 
-<!-- 文档类型: 项目说明文档 | 版本: 2026.1 | 更新时间: 2026-01-25 -->
-<!-- 描述: 项目整体介绍、功能特性、安装和使用指南的主要说明文档 -->
+<!-- 文档类型: 项目主文档 | 版本: 2026.1 | 更新时间: 2026-01-26 -->
+<!-- 描述: 项目完整说明文档，包含安装、配置、使用、测试的全面指南 -->
 
-一个专注于政策知识管理的智能系统，集成了知识搜索、知识图谱可视化、语音问答等功能，支持专项债、特许经营、数据资产三大政策领域。
+一个专注于政策知识管理的智能系统，集成了RAGFlow文档处理、知识图谱可视化、语音问答等功能，支持专项债、特许经营、数据资产三大政策领域。
+
+## 🚀 快速开始
+
+```bash
+# 1. 克隆项目
+git clone [repository-url]
+cd Investopedia
+
+# 2. 安装依赖
+pip install -r requirements.txt
+
+# 3. 配置系统
+cp config/config.ini.template config/config.ini
+# 编辑 config.ini 设置RAGFlow和其他服务参数
+
+# 4. 运行测试 (可选)
+cd tests
+python run_tests.py
+
+# 5. 启动应用
+streamlit run app.py
+```
+
+## 📚 文档导航
+
+- **[🚀 快速启动指南](QUICK_START.md)** - 5分钟部署指南
+- **[📖 系统架构说明](SYSTEM_ARCHITECTURE.md)** - 技术架构和组件说明
+- **[⚙️ 完整系统指南](SYSTEM_GUIDE.md)** - 详细的部署和配置指南
+- **[🔧 RAGFlow配置](RAGFLOW_CONFIG_GUIDE.md)** - RAGFlow特定配置说明
+- **[🧪 测试文档](TESTING_GUIDE.md)** - 单元测试完整指南
+- **[📈 开发进度](PROGRESS.md)** - 项目进度和状态
+- **[📝 待办清单](TODO.md)** - 功能规划和bug追踪
+
+## 🎯 主要功能
+
+- **RAGFlow文档查看器** - 查看和搜索RAGFlow知识库中的文档
+- **智能摘要生成** - 基于DeepSeek API的多层次文档摘要
+- **知识图谱构建** - NetworkX + Pyvis交互式图谱可视化
+- **语音问答系统** - Whisper语音识别 + 智能问答
+- **策略搜索分析** - 多维度政策文档过滤和分析
+
+## 🔧 系统要求
+
+- Python 3.8+
+- RAGFlow实例（用于文档处理）
+- DeepSeek API密钥（用于AI功能）
+
+## 📞 支持
+
+如有问题请查看相关文档或提交Issue。
 
 ## 系统架构
 

@@ -8,7 +8,8 @@
 
 核心方法：
 - 政策操作：create_policy, get_policy_by_id, get_policies, update_policy, delete_policy
-- 标签操作：add_policy_tag, get_policy_tags
+- RAGFlow集成：get_policy_by_ragflow_id, update_policy
+- 标签操作：add_policy_tag, get_policy_tags, get_or_create_tag
 - 关系操作：add_policy_relation, get_policy_relations
 - 日志操作：log_processing, get_processing_logs
 - 统计操作：get_stats, count_policies
@@ -386,6 +387,39 @@ class PolicyDAO:
             }
         except Exception as e:
             logger.error(f"获取统计信息失败: {e}")
+            raise
+
+    def get_or_create_tag(self, tag_name: str, tag_type: str = "auto") -> int:
+        """
+        获取或创建标签
+        
+        Args:
+            tag_name: 标签名称
+            tag_type: 标签类型
+            
+        Returns:
+            标签ID
+        """
+        try:
+            # 先尝试查找现有标签
+            query = "SELECT id FROM tags WHERE name = ? AND type = ?"
+            result = self.db.execute_query(query, (tag_name, tag_type))
+            
+            if result:
+                return result[0][0]  # 返回现有标签ID
+            
+            # 创建新标签
+            insert_query = """
+            INSERT INTO tags (name, type, description, created_at)
+            VALUES (?, ?, ?, ?)
+            """
+            description = f"自动生成的{tag_type}标签: {tag_name}"
+            params = (tag_name, tag_type, description, datetime.now().isoformat())
+            
+            return self.db.execute_query(insert_query, params, return_id=True)
+            
+        except Exception as e:
+            logger.error(f"获取或创建标签失败: {e}")
             raise
 
 

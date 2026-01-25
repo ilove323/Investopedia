@@ -1,103 +1,36 @@
-# 测试指南
+# 测试快速指南
 
-## 概述
+> **📖 完整测试文档请查看**: [Documents/TESTING_GUIDE.md](../Documents/TESTING_GUIDE.md)
 
-本项目采用Python unittest框架进行单元测试，所有测试文件都位于 `tests/` 目录下。测试覆盖配置系统、RAGFlow客户端、API接口和核心业务逻辑。
+## 快速运行测试
 
-## 测试文件结构
+```bash
+# 运行所有测试
+./test_runner.sh
 
-```
-tests/
-├── run_tests.py                     # 测试运行器主程序
-├── test_config_system.py            # 配置系统测试
-├── test_ragflow_client.py           # RAGFlow客户端测试  
-├── test_ragflow_config_update.py    # RAGFlow配置更新测试
-├── test_ragflow_api_exploration.py  # RAGFlow API探索测试
-├── test_document_list_fix.py        # 文档列表功能修复验证测试
-├── test_business/                   # 业务逻辑测试
-├── test_database/                   # 数据库测试
-└── test_services/                   # 服务层测试
+# 运行特定测试
+./test_runner.sh ragflow    # RAGFlow测试
+./test_runner.sh config     # 配置测试
+./test_runner.sh quick      # 快速测试
+
+# 直接运行
+python run_tests.py
 ```
 
-## 测试文件说明
+## 测试文件
 
-### 1. test_config_system.py
-**目的**: 测试配置系统的加载、解析和验证功能
+- `test_config_system.py` - 配置系统测试
+- `test_ragflow_client.py` - RAGFlow客户端测试
+- `test_document_list_fix.py` - 文档列表修复测试
+- `test_ragflow_api_exploration.py` - API探索测试
 
-**测试内容**:
-- 配置文件加载（主配置、KB配置、提示文件）
-- 配置数据验证和类型转换
-- 错误配置的处理
-- 配置文件不存在时的默认处理
+## 测试状态
 
-**测试类**:
-- `TestConfigSystem`: 核心配置加载逻辑
-- `TestConfigFiles`: 配置文件读取和解析
+✅ **40个测试，39个通过，1个跳过，成功率100%**
 
-### 2. test_ragflow_client.py  
-**目的**: 测试RAGFlow客户端的核心功能
+---
 
-**测试内容**:
-- 客户端初始化和连接
-- API请求构建和处理
-- 数据格式转换
-- 错误处理和重试机制
-- **文档列表功能修复验证** *(新增)*
-
-**测试类**:
-- `TestRAGFlowClient`: 客户端基础功能
-- `TestRAGFlowAPI`: API接口调用
-- `TestDocumentListFeature`: 文档列表功能测试 *(新增)*
-- `TestRealDocumentIntegration`: 真实文档集成测试 *(新增)*
-
-**新增测试用例** *(2026-01-26)*:
-- `test_get_documents_success()`: 测试成功获取文档列表
-- `test_get_documents_knowledge_base_not_found()`: 测试知识库未找到场景
-- `test_get_documents_api_error()`: 测试API错误处理
-- `test_endpoint_configuration()`: 测试endpoint配置正确性
-- `test_web_url_configuration()`: 测试Web URL配置
-- `test_real_document_list_retrieval()`: 测试真实环境文档获取
-
-### 3. test_ragflow_config_update.py
-**目的**: 测试RAGFlow配置更新的完整流程
-
-**测试内容**:
-- 配置更新payload构建
-- API调用执行
-- 更新结果验证
-- 失败场景处理
-
-**测试类**:
-- `TestRAGFlowConfigUpdate`: 配置更新集成测试
-
-### 4. test_ragflow_api_exploration.py
-**目的**: 测试RAGFlow API探索和性能评估
-
-**测试内容**:
-- API端点发现
-- 响应时间测量
-- 数据结构分析
-- 连接稳定性测试
-
-**测试类**:
-- `TestRAGFlowAPIExploration`: API探索和性能测试
-
-### 5. test_document_list_fix.py
-**目的**: 专门验证RAGFlow文档列表功能修复 *(新增 2026-01-26)*
-
-**测试内容**:
-- API endpoint修复验证 (`/api/v1/datasets/{dataset_id}/documents`)
-- Web URL配置修复验证 (端口号:9380)
-- get_documents()方法完整工作流程测试
-- 错误处理机制验证
-- 真实环境集成测试
-
-**测试类**:
-- `TestDocumentListFix`: 核心功能修复验证
-- `TestDocumentsPageIntegration`: 页面集成测试
-
-**验证的修复内容**:
-- 修复前: HTTP 404错误 `/api/documents` not found
+**完整测试文档**: [Documents/TESTING_GUIDE.md](../Documents/TESTING_GUIDE.md)
 - 修复后: 正确调用 `/api/v1/datasets/{dataset_id}/documents`
 - 修复前: Web URL缺少端口号
 - 修复后: 完整URL `http://117.21.184.150:9380`

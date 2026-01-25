@@ -30,10 +30,70 @@ from src.components.graph_ui import (
 )
 from src.database.policy_dao import PolicyDAO
 from src.models.graph import PolicyGraph, NodeType, RelationType, GraphNode, GraphEdge
+from src.services.data_sync import DataSyncService
 
 
 def show():
     st.title("📊 知识图谱")
+
+    # 数据同步侧边栏
+    with st.sidebar:
+        st.subheader("📊 数据管理")
+        
+        # 显示数据状态
+        dao = PolicyDAO()
+        policies_count = len(dao.get_policies())
+        st.info(f"📋 本地数据库: {policies_count} 个政策")
+        
+        # 同步按钮
+        if st.button("🔄 同步RAGFlow数据", help="将RAGFlow中的文档同步到本地数据库"):
+            with st.spinner("正在同步数据..."):
+                try:
+                    sync_service = DataSyncService()
+                    
+                    sync_results = sync_service.sync_documents_to_database()
+                    
+                    st.success(f"""
+                    📊 同步完成！
+                    - 新增政策: {sync_results['new_policies']}个
+                    - 更新政策: {sync_results['updated_policies']}个
+                    - 总文档数: {sync_results['total_documents']}个
+                    """)
+                    
+                    if sync_results['errors']:
+                        with st.expander("⚠️ 同步错误", expanded=False):
+                            for error in sync_results['errors']:
+                                st.error(error)
+                    
+                    # 清空图谱缓存，强制重新构建
+                    st.session_state.graph = None
+                    st.experimental_rerun()
+                    
+                except Exception as e:
+                    st.error(f"同步失败: {str(e)}")
+        
+        # 同步状态检查
+        if st.button("🔍 检查同步状态", help="检查数据库和RAGFlow的同步状态"):
+            try:
+                sync_service = DataSyncService()
+                status = sync_service.get_sync_status()
+                
+                if 'error' in status:
+                    st.error(f"状态检查失败: {status['error']}")
+                else:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("本地政策", status['database_policies'])
+                    with col2:
+                        st.metric("RAGFlow文档", status['ragflow_documents'])
+                    
+                    # 连接状态
+                    if status['ragflow_status'] == 'connected':
+                        st.success("✅ RAGFlow连接正常")
+                    else:
+                        st.error("❌ RAGFlow连接失败")
+            except Exception as e:
+                st.error(f"状态检查失败: {str(e)}")
 
     # 初始化session state
     if "graph" not in st.session_state:
@@ -83,14 +143,24 @@ def show():
 
     with col_main:
         # 图谱统计
-        if st.session_state.graph:
+        if st.session_state.graph and st.session_state.graph.get_node_count() > 0:
             render_graph_stats(st.session_state.graph.get_stats())
+        else:
+            st.info("📊 图谱统计信息将在添加数据后显示")
 
         st.divider()
 
         # 主图谱显示
-        if st.session_state.graph:
-            render_network_graph(st.session_state.graph)
+        if st.session_state.graph and st.session_state.graph.get_node_count() > 0:
+            render_network_graph(st.session_state.graph.get_nx_graph())
+        else:
+            st.warning("🔍 图谱为空，无法显示")
+            st.info("""
+            💡 **提示**：
+            - 请先在"文档管理"页面上传政策文档
+            - 等待文档处理完成后返回此页面
+            - 或检查数据库连接是否正常
+            """)
 
         st.divider()
 
@@ -112,8 +182,24 @@ def build_policy_graph():
         dao = PolicyDAO()
         policies = dao.get_policies()
 
+        # 检查是否有数据
+        if not policies:
+            st.warning("📝 数据库中没有政策数据")
+            st.info("""
+            请先添加政策数据：
+            1. 访问"文档管理"页面
+            2. 上传政策文档
+            3. 等待处理完成
+            4. 返回图谱页面查看
+            """)
+            return PolicyGraph()
+
         # 创建图谱
         graph = PolicyGraph()
+        
+        # 记录添加的节点数
+        added_nodes = 0
+        added_edges = 0
 
         # 添加政策节点
         for policy in policies:
@@ -127,7 +213,8 @@ def build_policy_graph():
                     "status": policy.get('status')
                 }
             )
-            graph.add_node(node)
+            if graph.add_node(node):
+                added_nodes += 1
 
         # 添加发行机关节点
         authorities = set()
@@ -141,7 +228,8 @@ def build_policy_graph():
                 label=authority,
                 node_type=NodeType.AUTHORITY
             )
-            graph.add_node(node)
+            if graph.add_node(node):
+                added_nodes += 1
 
             # 连接政策到发行机关
             for policy in policies:
@@ -152,8 +240,8 @@ def build_policy_graph():
                         relation_type=RelationType.ISSUED_BY,
                         label="由...发布"
                     )
-                    graph.add_edge(edge)
-
+                    if graph.add_edge(edge):
+                        added_edges += 1
         # 添加地区节点
         regions = set()
         for policy in policies:
@@ -166,7 +254,8 @@ def build_policy_graph():
                 label=region,
                 node_type=NodeType.REGION
             )
-            graph.add_node(node)
+            if graph.add_node(node):
+                added_nodes += 1
 
             # 连接政策到地区
             for policy in policies:
@@ -177,7 +266,8 @@ def build_policy_graph():
                         relation_type=RelationType.APPLIES_TO,
                         label="适用于"
                     )
-                    graph.add_edge(edge)
+                    if graph.add_edge(edge):
+                        added_edges += 1
 
         # 添加政策间关系
         for policy in policies:
@@ -190,8 +280,12 @@ def build_policy_graph():
                     label=relation.get('relation_type'),
                     attributes={"confidence": relation.get('confidence')}
                 )
-                graph.add_edge(edge)
+                if graph.add_edge(edge):
+                    added_edges += 1
 
+        # 记录构建结果
+        st.success(f"🎯 图谱构建完成: 添加了 {added_nodes} 个节点, {added_edges} 条边")
+        
         return graph
 
     except Exception as e:

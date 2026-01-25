@@ -288,13 +288,49 @@ class PolicyGraph:
 
     def get_stats(self) -> Dict[str, Any]:
         """获取图谱统计信息"""
-        return {
-            'node_count': len(self.nodes),
-            'edge_count': len(self.edges),
-            'density': nx.density(self.graph) if self.graph.number_of_nodes() > 0 else 0,
-            'number_of_connected_components': nx.number_connected_components(self.graph),
-            'diameter': nx.diameter(self.graph) if nx.is_connected(self.graph) else None
-        }
+        node_count = len(self.nodes)
+        edge_count = len(self.edges)
+        
+        # 对于空图或无效图的安全处理
+        if node_count == 0:
+            return {
+                'node_count': 0,
+                'edge_count': 0,
+                'density': 0,
+                'number_of_connected_components': 0,
+                'diameter': None
+            }
+        
+        try:
+            # 计算图谱统计信息
+            density = nx.density(self.graph) if self.graph.number_of_nodes() > 0 else 0
+            num_components = nx.number_connected_components(self.graph)
+            
+            # 计算直径需要图是连通的且有足够节点
+            diameter = None
+            if node_count > 1 and nx.is_connected(self.graph):
+                try:
+                    diameter = nx.diameter(self.graph)
+                except (nx.NetworkXError, nx.NetworkXNoPath):
+                    diameter = None
+            
+            return {
+                'node_count': node_count,
+                'edge_count': edge_count,
+                'density': density,
+                'number_of_connected_components': num_components,
+                'diameter': diameter
+            }
+        except Exception as e:
+            # 如果计算统计信息失败，返回基本信息
+            return {
+                'node_count': node_count,
+                'edge_count': edge_count,
+                'density': 0,
+                'number_of_connected_components': 0,
+                'diameter': None,
+                'error': str(e)
+            }
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
