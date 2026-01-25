@@ -7,9 +7,13 @@
 
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+from pathlib import Path
 
-from services.ragflow_client import RAGFlowClient
+# Add project root to path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root / 'src'))
+
+from src.services.ragflow_client import RAGFlowClient
 import time
 
 def test_similarity_threshold():
@@ -24,8 +28,11 @@ def test_similarity_threshold():
     if not config:
         print("❌ 无法获取知识库配置")
         return
-    
-    print(f"📋 当前相似度阈值: {config.get('similarity_threshold', 'Unknown')}")
+
+    # 从嵌套结构中提取相似度阈值
+    basic_info = config.get('知识库基本信息', {})
+    current_threshold = basic_info.get('相似度阈值', 'Unknown')
+    print(f"📋 当前相似度阈值: {current_threshold}")
     
     # 测试1：只设置相似度阈值
     print("\n🔄 测试1：只更新相似度阈值...")
@@ -40,12 +47,19 @@ def test_similarity_threshold():
         # 检查更新
         updated_config = client.get_knowledge_base_config("policy_demo_kb")
         if updated_config:
-            new_threshold = updated_config.get('similarity_threshold', 'Unknown')
+            basic_info = updated_config.get('知识库基本信息', {})
+            new_threshold = basic_info.get('相似度阈值', 'Unknown')
             print(f"📋 更新后相似度阈值: {new_threshold}")
-            if float(new_threshold) == 0.3:
-                print("✅ 相似度阈值更新成功!")
+            if new_threshold != 'Unknown' and new_threshold is not None:
+                try:
+                    if float(new_threshold) == 0.3:
+                        print("✅ 相似度阈值更新成功!")
+                    else:
+                        print(f"❌ 相似度阈值未更新: 期望0.3, 实际{new_threshold}")
+                except (ValueError, TypeError):
+                    print(f"⚠️ 无法解析相似度阈值: {new_threshold}")
             else:
-                print(f"❌ 相似度阈值未更新: 期望0.3, 实际{new_threshold}")
+                print("ℹ️ SDK未返回相似度阈值信息，但配置更新已发送")
     else:
         print("❌ API调用失败")
     

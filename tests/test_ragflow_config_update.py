@@ -90,27 +90,31 @@ class TestRAGFlowConfigUpdate(unittest.TestCase):
                 except AttributeError:
                     self.skipTest("参数映射方法不可访问")
                     
-    @patch('src.services.ragflow_client.requests.put')
-    def test_config_update_api_call(self, mock_put):
+    def test_config_update_api_call(self):
         """测试配置更新API调用（模拟）"""
-        # 模拟成功响应
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {'retcode': 0, 'data': {}}
-        mock_put.return_value = mock_response
-        
-        test_config = {
-            'chunk_size': 800,
-            'graph_retrieval': True
-        }
-        
-        try:
-            # 尝试调用配置更新（使用正确的参数）
-            result = self.client._apply_configuration()
-            # 如果成功调用，检查是否有相关日志或行为
-            self.assertIsNotNone(self.client)
-        except (AttributeError, ValueError, TypeError) as e:
-            self.skipTest(f"配置更新方法不可访问: {e}")
+        # Mock SDK methods for config update
+        mock_dataset = MagicMock()
+        mock_dataset.id = 'test_id'
+        mock_dataset.update = MagicMock()
+
+        with patch.object(self.client, '_check_knowledge_base_exists') as mock_check, \
+             patch.object(self.client, '_get_or_create_dataset') as mock_get_dataset:
+
+            mock_check.return_value = True
+            mock_get_dataset.return_value = mock_dataset
+
+            test_config = {
+                'chunk_size': 800,
+                'graph_retrieval': True
+            }
+
+            try:
+                # 尝试调用配置更新（使用正确的参数）
+                result = self.client._apply_configuration()
+                # 如果成功调用，检查是否有相关日志或行为
+                self.assertIsNotNone(self.client)
+            except (AttributeError, ValueError, TypeError) as e:
+                self.skipTest(f"配置更新方法不可访问: {e}")
             
     def test_config_verification(self):
         """测试配置验证"""

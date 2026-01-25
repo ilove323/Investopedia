@@ -39,22 +39,79 @@
 
 ---
 
+## RAGFlow SDK集成
+
+### 技术方案
+
+系统使用**RAGFlow官方Python SDK** (ragflow-sdk >= 0.13.0) 实现所有RAGFlow功能。
+
+```python
+from ragflow_sdk import RAGFlow
+
+# SDK客户端初始化
+rag = RAGFlow(
+    api_key=RAGFLOW_API_KEY,
+    base_url=RAGFLOW_BASE_URL
+)
+
+# 获取数据集
+datasets = rag.list_datasets(name="policy_demo_kb")
+dataset = datasets[0]
+
+# 上传文档
+documents = dataset.upload_documents([{
+    "display_name": "policy.pdf",
+    "blob": file_content
+}])
+
+# 语义检索
+chunks = dataset.retrieve(question="查询内容", limit=10)
+
+# 创建聊天助手
+chat = rag.create_chat(
+    name="PolicyChat",
+    dataset_ids=[dataset.id]
+)
+
+# 问答对话
+session = chat.create_session("会话名称")
+message = session.ask(question="问题", stream=False)
+```
+
+### 架构优势
+
+- ✅ **代码简化**: 移除~400行自定义HTTP客户端代码
+- ✅ **类型安全**: SDK提供完整类型提示
+- ✅ **自动更新**: SDK自动跟随RAGFlow API更新
+- ✅ **错误处理**: SDK内置完善的错误处理机制
+- ✅ **性能优化**: SDK内部实现连接池和重试机制
+
+详见：[RAGFlow SDK集成文档](RAGFLOW_SDK_INTEGRATION.md)
+
+---
+
 ## 核心模块说明
 
 ### 1️⃣ 文件处理流程
 
-#### ✅ 最新方案 (RAGFlow-native)
+#### ✅ 当前方案 (RAGFlow SDK)
 
 ```
-用户上传 
+用户上传
   ↓
 Streamlit file_uploader
   ↓
 保存为临时文件
   ↓
 ragflow_client.upload_document()
+  ├─ dataset = rag.list_datasets(name=kb_name)[0]
+  ├─ 读取文件内容 (blob)
+  └─ dataset.upload_documents([{"display_name": name, "blob": content}])
   ↓
-RAGFlow处理 (PDF→text, DOCX→text, TXT)
+RAGFlow SDK处理 (PDF→text, DOCX→text, TXT)
+  ├─ 智能文本提取
+  ├─ 自动文本分块（配置化）
+  └─ 向量化存储
   ↓
 返回 doc_id
   ↓
@@ -63,15 +120,17 @@ RAGFlow处理 (PDF→text, DOCX→text, TXT)
 成功提示
 ```
 
-**RAGFlow负责：**
+**RAGFlow SDK负责：**
 - 智能文本提取（多种格式支持）
-- 自动文本分块（500字符/块）
-- 向量化存储
+- 自动文本分块（通过parser_config配置）
+- 向量化存储和索引
+- HTTP连接管理和重试
 
 **应用负责：**
 - 表单验证（标题、文号、类型）
 - 元数据管理（标题、文号、分类）
 - 关系管理（与标签、图谱的关联）
+- 知识库配置管理
 
 ---
 
@@ -150,18 +209,25 @@ stats = graph.get_stats()  # 返回dict
 ```
 用户输入查询词
   ↓
-RAGFlow /api/search
+ragflow_client.search(query, kb_name, top_k)
+  ├─ dataset = rag.list_datasets(name=kb_name)[0]
+  └─ chunks = dataset.retrieve(question=query, limit=top_k)
   ↓
+RAGFlow SDK内部处理
   ├─→ 语义相似度计算
   ├─→ BM25混合排序
-  └─→ 返回top_k结果
+  └─→ 返回top_k结果（Chunk对象）
+  ↓
+转换为标准格式
+  └─ [{content, document_name, similarity, chunk_id}, ...]
 ```
 
 **配置：**
 ```ini
+[RAGFLOW]
 search_top_k = 10
-search_score_threshold = 0.5
-search_type = hybrid  # BM25 + 向量相似度
+ragflow_similarity_threshold = 0.3
+ragflow_retrieval_mode = general  # hybrid检索模式
 ```
 
 ---
@@ -266,26 +332,49 @@ max_edges = 500
 
 ## 依赖清单
 
-### 核心依赖
-- `streamlit==1.38.0` - Web UI框架
-- `requests==2.31.0` - HTTP客户端
-- `pandas==2.1.1` - 数据处理
-- `networkx==3.2` - 图算法
-- `pyvis==0.3.2` - 图可视化
+### 核心Web框架
+- `streamlit>=1.40.0` - Web UI框架
+- `streamlit-option-menu>=0.3.13` - UI组件
 
-### 已删除的依赖
-- ❌ `pdfplumber` - RAGFlow处理
-- ❌ `PyPDF2` - RAGFlow处理
-- ❌ `python-docx` - RAGFlow处理
+### RAGFlow集成
+- `ragflow-sdk>=0.13.0` - RAGFlow官方Python SDK
+- `requests>=2.32.0` - HTTP客户端（SDK依赖）
+- `beartype>=0.20.0` - 类型检查（SDK依赖）
 
-### 保留的依赖
-- ✅ `openpyxl` - 可能用于Excel导出（待确认）
+### 数据处理
+- `pandas>=2.2.3` - 数据处理
+- `numpy>=2.0.0` - 数值计算
+
+### 知识图谱与可视化
+- `networkx>=3.4` - 图算法
+- `pyvis>=0.3.2` - 图可视化
+- `plotly>=5.24.0` - 数据可视化
+
+### 音频处理
+- `librosa>=0.10.2` - 音频分析
+- `soundfile>=0.12.1` - 音频I/O
+
+### 文件处理
+- `openpyxl>=3.1.5` - Excel文件处理
+
+### 开发工具
+- `pytest>=8.3.0` - 单元测试
+- `pytest-cov>=6.0.0` - 测试覆盖率
+- `black>=24.10.0` - 代码格式化
+- `flake8>=7.1.0` - 代码检查
+- `mypy>=1.13.0` - 类型检查
+
+### 已移除的依赖
+- ❌ `pdfplumber` - RAGFlow SDK处理
+- ❌ `PyPDF2` - RAGFlow SDK处理
+- ❌ `python-docx` - RAGFlow SDK处理
+- ❌ 自定义HTTP客户端代码 - SDK内置
 
 ---
 
 ## 调用流程示例
 
-### 场景1: 上传PDF政策
+### 场景1: 上传PDF政策 (使用SDK)
 
 ```python
 # 1. 用户选择文件
@@ -294,15 +383,23 @@ uploaded_file = st.file_uploader("选择PDF")
 # 2. 保存临时文件
 with tempfile.NamedTemporaryFile() as tmp:
     tmp.write(uploaded_file.getbuffer())
-    
-    # 3. 上传到RAGFlow
-    client = get_ragflow_client()
+
+    # 3. 使用RAGFlow SDK上传
+    client = get_ragflow_client()  # 获取SDK客户端
     doc_id = client.upload_document(
         file_path=tmp.name,
         file_name=uploaded_file.name,
         knowledge_base_name="policy_demo_kb"
     )
-    
+
+    # SDK内部执行：
+    # dataset = client.rag.list_datasets(name="policy_demo_kb")[0]
+    # documents = dataset.upload_documents([{
+    #     "display_name": uploaded_file.name,
+    #     "blob": file_content
+    # }])
+    # doc_id = documents[0].id
+
     # 4. 保存元数据到DB
     policy_data = {
         'title': '政策标题',
@@ -333,19 +430,24 @@ summary = generate_summary(text, max_length=1500)
 # - 返回摘要
 ```
 
-### 场景3: 搜索政策
+### 场景3: 搜索政策 (使用SDK)
 
 ```python
 from src.services.ragflow_client import get_ragflow_client
 
-client = get_ragflow_client()
+client = get_ragflow_client()  # 获取SDK客户端
 
 # 1. 语义搜索
 results = client.search(
     query="特许经营相关政策",
-    top_k=10,
-    threshold=0.5
+    knowledge_base_name="policy_demo_kb",
+    top_k=10
 )
+
+# SDK内部执行：
+# dataset = client.rag.list_datasets(name="policy_demo_kb")[0]
+# chunks = dataset.retrieve(question="特许经营相关政策", limit=10)
+# 转换为标准格式返回
 
 # 2. RAGFlow返回相关文档
 # - 向量相似度 + BM25混合排序

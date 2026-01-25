@@ -28,6 +28,75 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def get_readable_status(status) -> tuple[str, str]:
+    """
+    将RAGFlow状态码转换为可读的中文描述
+
+    Args:
+        status: 状态码（可能是字符串或数字）
+
+    Returns:
+        (状态图标, 状态描述) 元组
+    """
+    # 转换为字符串以统一处理
+    status_str = str(status).lower().strip()
+
+    # 状态映射表
+    status_mapping = {
+        # 数字状态码
+        '0': ('🔴', '失败'),
+        '1': ('🟢', '已完成'),
+        '2': ('🟡', '处理中'),
+        '3': ('⚪', '已取消'),
+        # 字符串状态码
+        'failed': ('🔴', '失败'),
+        'error': ('🔴', '错误'),
+        'ready': ('🟢', '已完成'),
+        'completed': ('🟢', '已完成'),
+        'done': ('🟢', '已完成'),
+        'processing': ('🟡', '处理中'),
+        'running': ('🟡', '处理中'),
+        'pending': ('🟡', '等待中'),
+        'canceled': ('⚪', '已取消'),
+        'cancelled': ('⚪', '已取消'),
+    }
+
+    # 查找匹配的状态
+    if status_str in status_mapping:
+        return status_mapping[status_str]
+
+    # 未知状态
+    return ('⚪', f'未知({status})')
+
+
+def get_parser_name(parser_id: str) -> str:
+    """
+    将解析器ID转换为可读的名称
+
+    Args:
+        parser_id: 解析器ID
+
+    Returns:
+        解析器名称
+    """
+    parser_mapping = {
+        'naive': '通用解析',
+        'paper': '论文解析',
+        'book': '书籍解析',
+        'presentation': '演示文稿解析',
+        'manual': '手动解析',
+        'qa': '问答解析',
+        'table': '表格解析',
+        'resume': '简历解析',
+        'picture': '图片解析',
+        'one': '一阶解析',
+        'knowledge_graph': '知识图谱解析',
+        'deepdoc': '深度文档解析',
+    }
+
+    return parser_mapping.get(parser_id.lower() if parser_id else '', parser_id or 'N/A')
+
+
 def show():
     """主要显示函数"""
     st.title("📚 RAGFlow 文档查看器")
@@ -106,13 +175,16 @@ def render_documents_list(ragflow_client, kb_name: str):
 
         # 显示文档统计
         total_docs = len(documents)
-        ready_docs = len([d for d in documents if d.get('status') in ['ready', 'completed', 'done']])
-        processing_docs = len([d for d in documents if d.get('status') in ['processing', 'running']])
-        
-        col1, col2, col3 = st.columns(3)
+        # 统计各状态文档数（支持数字和字符串状态）
+        ready_docs = len([d for d in documents if str(d.get('status', '')).lower() in ['1', 'ready', 'completed', 'done']])
+        processing_docs = len([d for d in documents if str(d.get('status', '')).lower() in ['2', 'processing', 'running', 'pending']])
+        total_chunks = sum(d.get('chunk_num', 0) for d in documents)
+
+        col1, col2, col3, col4 = st.columns(4)
         col1.metric("📄 总文档数", total_docs)
-        col2.metric("✅ 已完成", ready_docs)  
+        col2.metric("✅ 已完成", ready_docs)
         col3.metric("⏳ 处理中", processing_docs)
+        col4.metric("🧩 总分块数", total_chunks)
 
         st.divider()
 
@@ -127,100 +199,218 @@ def render_documents_list(ragflow_client, kb_name: str):
 
 def render_document_card(doc: Dict[str, Any], ragflow_client):
     """渲染单个文档卡片"""
-    doc_id = doc.get('id') or doc.get('doc_id') or doc.get('document_id', 'unknown')
-    doc_name = doc.get('name') or doc.get('filename') or doc.get('title', '未知文档')
-    doc_status = doc.get('status', 'unknown')
+    doc_id = doc.get('id', 'unknown')
+    doc_name = doc.get('name', '未知文档')
     doc_size = doc.get('size', 0)
-    doc_type = doc.get('type') or doc.get('file_type', '未知')
-    chunk_count = doc.get('chunk_count') or doc.get('chunks') or doc.get('chunk_num', 0)
-    upload_time = doc.get('upload_time') or doc.get('created_at') or doc.get('create_time', '')
+    chunk_num = doc.get('chunk_num', 0)
+    token_num = doc.get('token_num', 0)
+    progress = doc.get('progress', 0)
+    create_time = doc.get('create_time', '')
+    parser_id = doc.get('parser_id', '')
 
-    # 状态颜色映射
-    status_colors = {
-        'ready': '🟢',
-        'completed': '🟢', 
-        'done': '🟢',
-        'processing': '🟡',
-        'running': '🟡',
-        'failed': '🔴',
-        'error': '🔴'
-    }
-    status_icon = status_colors.get(doc_status, '⚪')
+    # 获取可读状态
+    status_icon, status_text = get_readable_status(doc.get('status', 'unknown'))
 
     with st.container(border=True):
         col_info, col_actions = st.columns([4, 1])
-        
+
         with col_info:
             st.markdown(f"**📄 {doc_name}**")
-            
+
             col_meta1, col_meta2 = st.columns(2)
             with col_meta1:
                 st.caption(f"🆔 ID: `{doc_id}`")
                 st.caption(f"📏 大小: {format_file_size(doc_size)}")
-                
+                if parser_id:
+                    st.caption(f"🔧 解析: {get_parser_name(parser_id)}")
+
             with col_meta2:
-                st.caption(f"{status_icon} 状态: {doc_status}")
-                st.caption(f"🧩 分块: {chunk_count} 个")
-                
-            if upload_time:
-                st.caption(f"📅 上传: {upload_time}")
+                st.caption(f"{status_icon} 状态: {status_text}")
+                st.caption(f"🧩 分块: {chunk_num} 个")
+                if token_num > 0:
+                    st.caption(f"🔤 Token: {token_num:,}")
+
+            # 显示进度条（如果正在处理）
+            if progress > 0 and progress < 1:
+                st.progress(progress, text=f"处理进度: {progress*100:.1f}%")
+
+            if create_time:
+                st.caption(f"📅 上传: {create_time}")
 
         with col_actions:
-            if st.button("📖 查看详情", key=f"detail_{doc_id}"):
+            if st.button("📝 查看内容", key=f"content_{doc_id}", use_container_width=True):
                 st.session_state.selected_doc = doc_id
-                
-            if st.button("📝 查看内容", key=f"content_{doc_id}"):
-                st.session_state.selected_doc = doc_id
+                st.session_state.view_mode = "content"  # 标记为查看内容模式
 
-        # 显示文档详情
+            if st.button("📊 查看分块", key=f"chunks_{doc_id}", use_container_width=True):
+                st.session_state.selected_doc = doc_id
+                st.session_state.view_mode = "chunks"  # 标记为查看分块模式
+
+        # 根据模式显示不同内容
         if st.session_state.get('selected_doc') == doc_id:
-            render_document_detail(doc, ragflow_client)
+            if st.session_state.get('view_mode') == "content":
+                render_document_source(doc, ragflow_client)
+            elif st.session_state.get('view_mode') == "chunks":
+                render_document_detail(doc, ragflow_client)
+
+
+def render_document_source(doc: Dict[str, Any], ragflow_client):
+    """渲染文档源文件内容（使用SDK下载）"""
+    doc_id = doc.get('id', 'unknown')
+    doc_name = doc.get('name', '未知文档')
+
+    with st.expander(f"📝 源文件内容 - {doc_name}", expanded=True):
+        try:
+            with st.spinner("📥 正在从RAGFlow获取源文件..."):
+                # 使用SDK获取文档内容
+                content = ragflow_client.get_document_content(doc_id)
+
+            if content:
+                # 显示文档信息
+                col_info, col_download = st.columns([2, 1])
+                with col_info:
+                    st.markdown(f"**📄 文档: {doc_name}**")
+                    st.caption(f"📏 {len(content):,} 字符")
+
+                with col_download:
+                    # 提供下载按钮
+                    st.download_button(
+                        "💾 下载源文件",
+                        content,
+                        file_name=doc_name if doc_name != '未知文档' else f"{doc_id}.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
+
+                st.divider()
+
+                # 内容显示选项
+                view_mode = st.radio(
+                    "显示格式",
+                    ["📝 纯文本", "📋 格式化"],
+                    horizontal=True,
+                    key=f"view_mode_{doc_id}"
+                )
+
+                # 显示内容
+                if view_mode == "📝 纯文本":
+                    st.text_area(
+                        "文档内容",
+                        content,
+                        height=600,
+                        disabled=True,
+                        key=f"content_text_{doc_id}"
+                    )
+                else:
+                    # 格式化显示
+                    st.markdown("**📋 格式化内容**")
+                    with st.container(height=600):
+                        # 简单的段落分割和格式化
+                        paragraphs = content.split('\n\n')
+                        for para in paragraphs:
+                            if para.strip():
+                                st.markdown(para.strip())
+                                st.markdown("")
+
+            else:
+                st.warning("😔 无法获取文档内容")
+                st.markdown("""
+                **可能原因：**
+                - 文档还在处理中，请稍后再试
+                - 文档格式不支持内容提取
+                - RAGFlow API暂时不可用
+
+                **建议：**
+                - 在RAGFlow Web界面检查文档状态
+                - 尝试查看文档分块内容
+                """)
+
+        except Exception as e:
+            st.error(f"❌ 获取源文件失败: {str(e)}")
+            logger.error(f"获取文档源文件失败 (doc_id: {doc_id}): {e}")
+
+        # 关闭按钮
+        if st.button("❌ 关闭", key=f"close_source_{doc_id}"):
+            st.session_state.selected_doc = None
+            st.session_state.view_mode = None
+            st.rerun()
 
 
 def render_document_detail(doc: Dict[str, Any], ragflow_client):
-    """渲染文档详细信息"""
-    doc_id = doc.get('id') or doc.get('doc_id') or doc.get('document_id')
-    
-    with st.expander(f"📖 详细信息 - {doc.get('name', '未知文档')}", expanded=True):
+    """渲染文档分块详细信息"""
+    doc_id = doc.get('id', 'unknown')
+
+    with st.expander(f"📊 分块详情 - {doc.get('name', '未知文档')}", expanded=True):
         try:
             # 显示基础信息
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 st.markdown("**📄 基础信息**")
                 st.write(f"名称: {doc.get('name', 'N/A')}")
-                st.write(f"类型: {doc.get('type', 'N/A')}")
                 st.write(f"大小: {format_file_size(doc.get('size', 0))}")
-                st.write(f"状态: {doc.get('status', 'N/A')}")
-                
+                status_icon, status_text = get_readable_status(doc.get('status', 'unknown'))
+                st.write(f"状态: {status_icon} {status_text}")
+
             with col2:
                 st.markdown("**⚙️ 处理信息**")
-                st.write(f"分块数: {doc.get('chunk_count', 0)} 个")
-                st.write(f"Token数: {doc.get('token_count', 0)}")
-                st.write(f"解析方法: {doc.get('parser_method', 'N/A')}")
-                
-                progress = doc.get('progress')
-                if progress is not None:
-                    st.write(f"处理进度: {progress}%")
-                    st.progress(progress / 100)
+                st.write(f"分块数: {doc.get('chunk_num', 0)} 个")
+                st.write(f"Token数: {doc.get('token_num', 0):,}")
+                parser_id = doc.get('parser_id', '')
+                st.write(f"解析方法: {get_parser_name(parser_id)}")
+
+                progress = doc.get('progress', 0)
+                if progress > 0 and progress < 1:
+                    st.write(f"处理进度: {progress*100:.1f}%")
+                    st.progress(progress)
+                elif progress >= 1:
+                    st.write("处理进度: ✅ 100%")
 
             # 时间信息
-            upload_time = doc.get('upload_time') or doc.get('created_at')
-            update_time = doc.get('update_time') or doc.get('updated_at')
-            
-            if upload_time or update_time:
+            create_time = doc.get('create_time', '')
+            update_time = doc.get('update_time', '')
+
+            if create_time or update_time:
                 st.markdown("**⏰ 时间信息**")
-                if upload_time:
-                    st.write(f"上传时间: {upload_time}")
+                if create_time:
+                    st.write(f"创建时间: {create_time}")
                 if update_time:
                     st.write(f"更新时间: {update_time}")
 
+            # 获取并显示分块列表
+            st.divider()
+            st.markdown("**🧩 文档分块列表**")
+
+            with st.spinner("获取分块信息..."):
+                chunks = ragflow_client.get_document_chunks(doc_id)
+
+            if chunks:
+                for i, chunk in enumerate(chunks, 1):
+                    with st.container(border=True):
+                        st.markdown(f"**分块 {i}**")
+                        st.caption(f"ID: `{chunk.get('id', 'N/A')}`")
+                        content = chunk.get('content', '')
+                        if content:
+                            # 显示前200字符
+                            preview = content[:200] + "..." if len(content) > 200 else content
+                            st.text(preview)
+                            if len(content) > 200:
+                                if st.button(f"查看完整内容", key=f"chunk_full_{i}"):
+                                    st.text_area("完整内容", content, height=300, key=f"chunk_content_{i}")
+                        keywords = chunk.get('important_keywords', [])
+                        if keywords:
+                            st.caption(f"🔑 关键词: {', '.join(keywords)}")
+            else:
+                st.info("暂无分块信息")
+
         except Exception as e:
             st.error(f"获取详细信息失败: {str(e)}")
+            logger.error(f"渲染文档详情失败: {e}")
 
         # 关闭按钮
-        if st.button("❌ 关闭详情", key=f"close_detail_{doc_id}"):
+        if st.button("❌ 关闭", key=f"close_detail_{doc_id}"):
             st.session_state.selected_doc = None
+            st.session_state.view_mode = None
             st.rerun()
 
 

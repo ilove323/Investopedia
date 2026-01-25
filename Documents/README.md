@@ -33,6 +33,7 @@ streamlit run app.py
 - **[📖 系统架构说明](SYSTEM_ARCHITECTURE.md)** - 技术架构和组件说明
 - **[⚙️ 完整系统指南](SYSTEM_GUIDE.md)** - 详细的部署和配置指南
 - **[🔧 RAGFlow配置](RAGFLOW_CONFIG_GUIDE.md)** - RAGFlow特定配置说明
+- **[🔌 RAGFlow SDK集成](RAGFLOW_SDK_INTEGRATION.md)** - 官方SDK实现细节
 - **[🧪 测试文档](TESTING_GUIDE.md)** - 单元测试完整指南
 - **[📈 开发进度](PROGRESS.md)** - 项目进度和状态
 - **[📝 待办清单](TODO.md)** - 功能规划和bug追踪
@@ -47,8 +48,9 @@ streamlit run app.py
 
 ## 🔧 系统要求
 
-- Python 3.8+
+- Python 3.12+ (推荐3.13或3.14)
 - RAGFlow实例（用于文档处理）
+- RAGFlow Python SDK (>=0.13.0)
 - DeepSeek API密钥（用于AI功能）
 
 ## 📞 支持
@@ -111,13 +113,14 @@ streamlit run app.py
 
 ## 技术栈
 
-- **前端框架**：Streamlit
-- **知识图谱**：NetworkX + Pyvis
+- **前端框架**：Streamlit >= 1.40.0
+- **知识图谱**：NetworkX >= 3.4 + Pyvis >= 0.3.2
+- **数据处理**：Pandas >= 2.2.3, NumPy >= 2.0.0
 - **数据存储**：SQLite
-- **外部服务**：
-  - RAGFlow（文档处理和AI能力）
+- **外部服务集成**：
+  - RAGFlow SDK >= 0.13.0（文档处理和AI能力）
   - Whisper（语音转文字）
-- **开发语言**：Python 3.8+
+- **开发语言**：Python 3.12+ (支持3.13和3.14)
 
 ## 快速开始
 
