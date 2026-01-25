@@ -216,17 +216,15 @@ def check_services():
                         ragflow = get_ragflow_client()
                         if ragflow.configure_knowledge_base():
                             st.session_state.ragflow_configured = True
-                            st.experimental_rerun()
+                            st.rerun()
                         else:
                             st.error("配置失败")
                     except Exception as e:
                         st.error(f"配置失败: {e}")
 
-        # 警告信息
-        if not all([ragflow_status, whisper_status, db_status]):
-            st.warning("⚠️ 部分服务异常，某些功能可能不可用")
-
-        return ragflow_status, whisper_status, db_status
+    # 警告信息
+    if not all([ragflow_status, whisper_status, db_status]):
+        st.warning("⚠️ 部分服务异常，某些功能可能不可用")
 
 
 def show_sidebar():
