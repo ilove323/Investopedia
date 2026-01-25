@@ -201,10 +201,30 @@ class ConfigLoader:
 
     @property
     def ragflow_document_config(self) -> dict:
+        """获取RAGFlow文档处理和元数据配置"""
         return {
-            "chunk_size": self.get_int("RAGFLOW", "document_chunk_size", 500),
-            "chunk_overlap": self.get_int("RAGFLOW", "document_chunk_overlap", 50),
-            "smart_chunking": self.get_bool("RAGFLOW", "document_smart_chunking", True),
+            'chunk_size': self.config.getint('RAGFLOW', 'document_chunk_size', fallback=800),
+            'chunk_overlap': self.config.getint('RAGFLOW', 'document_chunk_overlap', fallback=100),
+            'smart_chunking': self.config.getboolean('RAGFLOW', 'document_smart_chunking', fallback=True),
+            'pdf_parser': self.config.get('RAGFLOW', 'ragflow_pdf_parser', fallback='deepdoc'),
+            'auto_metadata': self.config.getboolean('RAGFLOW', 'ragflow_auto_metadata', fallback=True),
+            'metadata_extraction': self.config.getboolean('RAGFLOW', 'ragflow_metadata_extraction', fallback=True),
+            'table_recognition': self.config.getboolean('RAGFLOW', 'ragflow_table_recognition', fallback=True),
+            'formula_recognition': self.config.getboolean('RAGFLOW', 'ragflow_formula_recognition', fallback=False),
+            'ocr_enabled': self.config.getboolean('RAGFLOW', 'ragflow_ocr_enabled', fallback=True)
+        }
+
+    @property
+    def ragflow_advanced_config(self) -> dict:
+        """获取RAGFlow高级配置"""
+        return {
+            'max_tokens': self.config.getint('RAGFLOW', 'ragflow_max_tokens', fallback=2048),
+            'similarity_threshold': self.config.getfloat('RAGFLOW', 'ragflow_similarity_threshold', fallback=0.3),
+            'max_clusters': self.config.getint('RAGFLOW', 'ragflow_max_clusters', fallback=50),
+            'random_seed': self.config.getint('RAGFLOW', 'ragflow_random_seed', fallback=42),
+            'retrieval_mode': self.config.get('RAGFLOW', 'ragflow_retrieval_mode', fallback='general'),
+            'entity_normalization': self.config.getboolean('RAGFLOW', 'ragflow_entity_normalization', fallback=True),
+            'graph_retrieval': self.config.getboolean('RAGFLOW', 'ragflow_graph_retrieval', fallback=True)
         }
 
     @property

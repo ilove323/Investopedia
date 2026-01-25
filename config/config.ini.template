@@ -59,9 +59,41 @@ qa_temperature = 0.1
 qa_top_p = 0.9
 
 # 文档处理配置
-document_chunk_size = 500
-document_chunk_overlap = 50
+# 政策条目较长，使用较大的分块大小
+document_chunk_size = 800
+# 增加重叠保持连贯性
+document_chunk_overlap = 100
 document_smart_chunking = true
+
+# RAGFlow知识库高级配置
+# 最大TOKEN数
+ragflow_max_tokens = 2048
+# 相似度阈值（检索召回）
+ragflow_similarity_threshold = 0.3
+# 最大聚类数
+ragflow_max_clusters = 50
+# 随机种子
+ragflow_random_seed = 42
+
+# RAGFlow元数据和文档解析配置
+# 自动元数据提取
+ragflow_auto_metadata = true
+# 元数据提取（结构化信息）
+ragflow_metadata_extraction = true
+# 表格识别
+ragflow_table_recognition = true
+# 公式识别
+ragflow_formula_recognition = false
+# OCR识别
+ragflow_ocr_enabled = true
+# PDF解析器
+ragflow_pdf_parser = deepdoc
+# 检索模式
+ragflow_retrieval_mode = general
+# 实体归一化
+ragflow_entity_normalization = true
+# 图检索增强
+ragflow_graph_retrieval = true
 
 # ========== 知识库配置 ==========
 # 说明：以下知识库需要在RAGFlow中手动创建
