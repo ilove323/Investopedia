@@ -134,16 +134,13 @@ def show():
         st.markdown(f"[📤 上传文档到RAGFlow]({ragflow_url})")
 
     # 标签页
-    tab_list, tab_search, tab_content = st.tabs(["📋 文档列表", "🔍 文档搜索", "📖 文档内容"])
+    tab_list, tab_search = st.tabs(["📋 文档列表", "🔍 文档搜索"])
 
     with tab_list:
         render_documents_list(ragflow_client, kb_name)
 
     with tab_search:
         render_document_search(ragflow_client, kb_name)
-
-    with tab_content:
-        render_document_content(ragflow_client)
 
 
 def render_documents_list(ragflow_client, kb_name: str):
@@ -238,19 +235,30 @@ def render_document_card(doc: Dict[str, Any], ragflow_client):
                 st.caption(f"📅 上传: {create_time}")
 
         with col_actions:
-            if st.button("📝 查看内容", key=f"content_{doc_id}", use_container_width=True):
-                st.session_state.selected_doc = doc_id
-                st.session_state.view_mode = "content"  # 标记为查看内容模式
-
-            if st.button("📊 查看分块", key=f"chunks_{doc_id}", use_container_width=True):
+            if st.button("� 查看分块", key=f"chunks_{doc_id}", use_container_width=True):
                 st.session_state.selected_doc = doc_id
                 st.session_state.view_mode = "chunks"  # 标记为查看分块模式
 
+            # 下载源文件按钮
+            try:
+                pdf_data = ragflow_client.download_document(doc_id)
+                if pdf_data:
+                    st.download_button(
+                        "💾 下载源文件",
+                        pdf_data,
+                        file_name=doc.get('name', f'document_{doc_id}.pdf'),
+                        mime="application/pdf",
+                        key=f"download_{doc_id}",
+                        use_container_width=True
+                    )
+                else:
+                    st.button("💾 文件不可用", disabled=True, key=f"download_disabled_{doc_id}", use_container_width=True)
+            except:
+                st.button("💾 下载失败", disabled=True, key=f"download_failed_{doc_id}", use_container_width=True)
+
         # 根据模式显示不同内容
         if st.session_state.get('selected_doc') == doc_id:
-            if st.session_state.get('view_mode') == "content":
-                render_document_source(doc, ragflow_client)
-            elif st.session_state.get('view_mode') == "chunks":
+            if st.session_state.get('view_mode') == "chunks":
                 render_document_detail(doc, ragflow_client)
 
 
@@ -271,13 +279,21 @@ def render_document_source(doc: Dict[str, Any], ragflow_client):
                 with col_info:
                     st.markdown(f"**📄 文档: {doc_name}**")
                     st.caption(f"📏 {len(content):,} 字符")
+                    
+                    # 显示文件类型和提取方式
+                    if doc_name.lower().endswith('.pdf'):
+                        st.caption("🔧 使用PDF解析器提取")
+                    elif doc_name.lower().endswith(('.txt', '.md')):
+                        st.caption("🔧 文本文件直接读取") 
+                    else:
+                        st.caption("🔧 智能编码检测")
 
                 with col_download:
                     # 提供下载按钮
                     st.download_button(
-                        "💾 下载源文件",
+                        "💾 下载内容",
                         content,
-                        file_name=doc_name if doc_name != '未知文档' else f"{doc_id}.txt",
+                        file_name=f"{doc_name.replace('.pdf', '.txt')}" if doc_name != '未知文档' else f"{doc_id}.txt",
                         mime="text/plain",
                         use_container_width=True
                     )
@@ -287,7 +303,7 @@ def render_document_source(doc: Dict[str, Any], ragflow_client):
                 # 内容显示选项
                 view_mode = st.radio(
                     "显示格式",
-                    ["📝 纯文本", "📋 格式化"],
+                    ["📝 纯文本", "📋 格式化", "📊 智能预览"],
                     horizontal=True,
                     key=f"view_mode_{doc_id}"
                 )
@@ -301,7 +317,7 @@ def render_document_source(doc: Dict[str, Any], ragflow_client):
                         disabled=True,
                         key=f"content_text_{doc_id}"
                     )
-                else:
+                elif view_mode == "📋 格式化":
                     # 格式化显示
                     st.markdown("**📋 格式化内容**")
                     with st.container(height=600):
@@ -311,6 +327,88 @@ def render_document_source(doc: Dict[str, Any], ragflow_client):
                             if para.strip():
                                 st.markdown(para.strip())
                                 st.markdown("")
+                else:  # 智能预览
+                    st.markdown("**📊 智能预览**")
+                    
+                    # 检查是否是错误信息
+                    if content.startswith(('⚠️', '❌')):
+                        st.warning(content)
+                        
+                        # 如果PDF解析失败，尝试显示分块内容
+                        if '解析失败' in content:
+                            st.markdown("---")
+                            st.markdown("**🔄 尝试从分块内容获取文档信息**")
+                            
+                            try:
+                                chunks = ragflow_client.get_document_chunks(doc_id)
+                                if chunks:
+                                    st.success(f"📊 找到 {len(chunks)} 个文档分块")
+                                    
+                                    # 显示前几个分块作为预览
+                                    with st.expander("📖 分块内容预览", expanded=True):
+                                        for i, chunk in enumerate(chunks[:3]):
+                                            st.markdown(f"**分块 {i+1}:**")
+                                            chunk_content = chunk.get('content', '')[:300]
+                                            st.write(chunk_content + "..." if len(chunk.get('content', '')) > 300 else chunk_content)
+                                            if i < 2:
+                                                st.divider()
+                                    
+                                    if len(chunks) > 3:
+                                        st.info(f"还有 {len(chunks) - 3} 个分块，可在下方查看完整分块详情")
+                                else:
+                                    st.error("📭 也无法获取分块内容")
+                            except Exception as e:
+                                st.error(f"获取分块内容失败: {str(e)}")
+                    else:
+                        # 正常内容的智能预览
+                        content_lines = content.split('\n')
+                        
+                        # 显示文档摘要信息
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("总行数", len(content_lines))
+                        with col2:
+                            st.metric("总字符", len(content))
+                        with col3:
+                            non_empty_lines = len([line for line in content_lines if line.strip()])
+                            st.metric("有效行数", non_empty_lines)
+                        
+                        # 显示内容预览
+                        with st.container(height=600):
+                            # 自动检测并高亮关键信息
+                            if any(keyword in content.lower() for keyword in ['专项债', '政策', '条例', '管理办法']):
+                                st.info("🏛️ 检测到政策文档内容")
+                            
+                            # 分页显示长文档
+                            if len(content_lines) > 50:
+                                page_size = 50
+                                total_pages = (len(content_lines) + page_size - 1) // page_size
+                                page_num = st.selectbox(
+                                    f"选择页面 (共 {total_pages} 页)",
+                                    range(1, total_pages + 1),
+                                    key=f"page_select_{doc_id}"
+                                )
+                                
+                                start_idx = (page_num - 1) * page_size
+                                end_idx = min(start_idx + page_size, len(content_lines))
+                                page_content = '\n'.join(content_lines[start_idx:end_idx])
+                                
+                                st.text_area(
+                                    f"第 {page_num} 页内容",
+                                    page_content,
+                                    height=500,
+                                    disabled=True,
+                                    key=f"page_content_{doc_id}_{page_num}"
+                                )
+                            else:
+                                # 短文档直接显示
+                                st.text_area(
+                                    "文档内容",
+                                    content,
+                                    height=500,
+                                    disabled=True,
+                                    key=f"smart_content_{doc_id}"
+                                )
 
             else:
                 st.warning("😔 无法获取文档内容")
@@ -494,7 +592,126 @@ def render_search_result(result: Dict[str, Any], index: int):
                 st.text_area("", content, height=200, key=f"content_{doc_id}_{index}")
 
 
+def render_document_viewer(ragflow_client):
+    """简洁的文档查看器：只显示分块和下载功能"""
+    st.subheader("📖 文档分块查看器")
+
+    if not st.session_state.get('selected_doc'):
+        st.info("👈 请先在左侧选择一个文档")
+        return
+
+    doc_id = st.session_state.selected_doc
+
+    try:
+        # 获取文档信息
+        with st.spinner("📥 获取文档信息..."):
+            documents = ragflow_client.get_documents()
+            current_doc = None
+            for doc in documents:
+                if doc.get('id') == doc_id:
+                    current_doc = doc
+                    break
+            
+            if not current_doc:
+                st.error(f"找不到文档: {doc_id}")
+                return
+
+        doc_name = current_doc.get('name', '未知文档')
+        
+        # 顶部：文档信息和返回按钮
+        col_info, col_download, col_back = st.columns([2, 1, 1])
+        
+        with col_info:
+            st.markdown(f"**📄 {doc_name}**")
+            
+        with col_download:
+            # 下载源文件按钮
+            try:
+                with st.spinner("准备下载..."):
+                    pdf_data = ragflow_client.download_document(doc_id)
+                if pdf_data:
+                    st.download_button(
+                        "💾 下载源文件",
+                        pdf_data,
+                        file_name=doc_name,
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                else:
+                    st.button("💾 文件不可用", disabled=True, use_container_width=True)
+            except:
+                st.button("💾 下载失败", disabled=True, use_container_width=True)
+                
+        with col_back:
+            if st.button("⬅️ 返回列表", use_container_width=True):
+                st.session_state.selected_doc = None
+                st.rerun()
+
+        st.divider()
+
+        # 主要内容：文档分块
+        st.markdown("### 🧩 文档分块")
+        
+        try:
+            with st.spinner("获取分块信息..."):
+                chunks = ragflow_client.get_document_chunks(doc_id)
+                
+            if chunks:
+                st.success(f"📊 找到 **{len(chunks)}** 个分块")
+                
+                # 显示每个分块
+                for i, chunk in enumerate(chunks, 1):
+                    with st.expander(f"📝 分块 {i} ({len(chunk.get('content', ''))} 字符)", expanded=i<=3):
+                        content = chunk.get('content', '')
+                        keywords = chunk.get('important_keywords', [])
+                        chunk_id = chunk.get('id', f'chunk_{i}')
+                        
+                        if content:
+                            st.text_area(
+                                f"内容",
+                                content,
+                                height=200,
+                                disabled=True,
+                                label_visibility="collapsed"
+                            )
+                        else:
+                            st.warning("分块内容为空")
+                        
+                        # 显示关键词和分块ID
+                        col_kw, col_id = st.columns(2)
+                        with col_kw:
+                            if keywords:
+                                st.caption(f"🔑 关键词: {', '.join(keywords)}")
+                            else:
+                                st.caption("🔑 无关键词")
+                        with col_id:
+                            st.caption(f"🔗 ID: {chunk_id}")
+            else:
+                st.error("❌ 未获取到分块数据")
+                st.info("可能原因：文档还在处理中，或者分块功能异常")
+                
+        except Exception as e:
+            st.error(f"❌ 获取分块失败: {e}")
+            
+            # 调试信息
+            with st.expander("🔧 调试信息"):
+                st.text(f"文档ID: {doc_id}")
+                st.text(f"错误详情: {str(e)}")
+                
+                # 尝试直接调用API
+                try:
+                    st.text("尝试重新获取...")
+                    chunks_debug = ragflow_client.get_document_chunks(doc_id)
+                    st.text(f"调试获取结果: {len(chunks_debug)} 个分块")
+                except Exception as debug_e:
+                    st.text(f"调试也失败: {debug_e}")
+
+    except Exception as e:
+        st.error(f"❌ 文档查看器错误: {str(e)}")
+
+
 def render_document_content(ragflow_client):
+    """渲染文档内容查看（保留原功能以备后用）"""
     """渲染文档内容查看"""
     st.subheader("📖 文档内容查看")
 

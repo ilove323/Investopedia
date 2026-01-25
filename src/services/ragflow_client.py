@@ -675,14 +675,24 @@ class RAGFlowClient:
                 return None
 
             doc = docs[0]
+            doc_name = getattr(doc, 'name', '') or ''
 
-            # 尝试下载文档内容
+            # 尝试下载文档内容并解析
             try:
                 content_bytes = doc.download()
                 if content_bytes:
-                    return content_bytes.decode('utf-8', errors='ignore')
-            except:
-                pass
+                    # 根据文件类型进行不同的处理
+                    if doc_name.lower().endswith('.pdf'):
+                        # PDF文件处理
+                        return self._extract_pdf_content(content_bytes, doc_name)
+                    elif doc_name.lower().endswith(('.txt', '.md', '.json', '.xml', '.csv')):
+                        # 文本文件处理
+                        return self._extract_text_content(content_bytes)
+                    else:
+                        # 其他文件类型，尝试文本提取
+                        return self._extract_text_content(content_bytes)
+            except Exception as e:
+                logger.warning(f"文档下载或解析失败 (doc_id: {doc_id}): {e}")
 
             # 回退：聚合块内容
             chunks = doc.list_chunks()
@@ -694,6 +704,173 @@ class RAGFlowClient:
             return None
         except Exception as e:
             logger.error(f"获取文档内容失败 (doc_id: {doc_id}): {e}")
+            return None
+
+    def _extract_pdf_content(self, content_bytes: bytes, doc_name: str) -> str:
+        """
+        从PDF字节内容提取文本
+        
+        Args:
+            content_bytes: PDF文件的二进制内容
+            doc_name: 文档名称（用于日志）
+            
+        Returns:
+            提取的文本内容
+        """
+        import warnings
+        import logging
+        
+        # 抑制PDF解析警告
+        warnings.filterwarnings('ignore', message='.*FontBBox.*')
+        warnings.filterwarnings('ignore', message='.*cannot be parsed.*')
+        
+        # 抑制PDF库的日志输出
+        logging.getLogger('pdfplumber').setLevel(logging.ERROR)
+        logging.getLogger('pdfminer').setLevel(logging.ERROR)
+        logging.getLogger('pdfminer.layout').setLevel(logging.ERROR)
+        logging.getLogger('pdfminer.converter').setLevel(logging.ERROR)
+        
+        try:
+            import io
+            
+            # 尝试使用pdfplumber（推荐，对表格和布局支持更好）
+            try:
+                import pdfplumber
+                with pdfplumber.open(io.BytesIO(content_bytes)) as pdf:
+                    text_parts = []
+                    for page_num, page in enumerate(pdf.pages, 1):
+                        page_text = page.extract_text()
+                        if page_text:
+                            text_parts.append(f"第{page_num}页:\n{page_text}")
+                    
+                    if text_parts:
+                        logger.info(f"PDF内容提取成功 (pdfplumber): {doc_name}, {len(text_parts)}页")
+                        return "\n\n".join(text_parts)
+                        
+            except ImportError:
+                logger.warning("pdfplumber未安装，尝试PyPDF2")
+            except Exception as e:
+                logger.warning(f"pdfplumber提取失败: {e}，尝试PyPDF2")
+            
+            # 回退到PyPDF2
+            try:
+                import PyPDF2
+                pdf_reader = PyPDF2.PdfReader(io.BytesIO(content_bytes))
+                text_parts = []
+                
+                for page_num, page in enumerate(pdf_reader.pages, 1):
+                    page_text = page.extract_text()
+                    if page_text and page_text.strip():
+                        text_parts.append(f"第{page_num}页:\n{page_text}")
+                
+                if text_parts:
+                    logger.info(f"PDF内容提取成功 (PyPDF2): {doc_name}, {len(text_parts)}页")
+                    return "\n\n".join(text_parts)
+                    
+            except ImportError:
+                logger.error("PDF处理库未安装，请安装：pip install pdfplumber PyPDF2")
+            except Exception as e:
+                logger.error(f"PyPDF2提取失败: {e}")
+            
+            # 如果都失败了，返回提示信息
+            return f"⚠️ PDF文件解析失败 ({doc_name})\n\n这可能是因为：\n1. PDF文件是扫描版（图片），需要OCR识别\n2. PDF文件有密码保护\n3. PDF文件格式不兼容\n\n建议：在RAGFlow Web界面查看解析后的分块内容"
+                
+        except Exception as e:
+            logger.error(f"PDF内容提取异常: {e}")
+            return f"❌ PDF文件处理异常: {str(e)}"
+
+    def _extract_text_content(self, content_bytes: bytes) -> str:
+        """
+        从文本文件字节内容提取文本
+        
+        Args:
+            content_bytes: 文件的二进制内容
+            
+        Returns:
+            提取的文本内容
+        """
+        try:
+            # 尝试检测编码
+            import chardet
+            detected = chardet.detect(content_bytes)
+            encoding = detected.get('encoding', 'utf-8')
+            confidence = detected.get('confidence', 0)
+            
+            logger.debug(f"检测到编码: {encoding} (置信度: {confidence:.2f})")
+            
+            # 按优先级尝试不同编码
+            encodings_to_try = [
+                encoding,  # 检测到的编码
+                'utf-8',
+                'utf-8-sig',  # UTF-8 with BOM
+                'gbk',
+                'gb2312', 
+                'big5',
+                'iso-8859-1',
+                'cp1252'
+            ]
+            
+            for enc in encodings_to_try:
+                if not enc:
+                    continue
+                try:
+                    text = content_bytes.decode(enc)
+                    logger.info(f"文本内容提取成功，使用编码: {enc}")
+                    return text
+                except (UnicodeDecodeError, LookupError):
+                    continue
+            
+            # 最后尝试忽略错误
+            text = content_bytes.decode('utf-8', errors='ignore')
+            logger.warning("使用UTF-8编码忽略错误模式")
+            return text
+                
+        except Exception as e:
+            logger.error(f"文本内容提取异常: {e}")
+            return f"❌ 文件内容提取失败: {str(e)}"
+
+    def download_document(self, doc_id: str, kb_name: Optional[str] = None) -> Optional[bytes]:
+        """
+        下载文档的原始二进制数据（用于PDF预览等）
+
+        Args:
+            doc_id: 文档ID
+            kb_name: 知识库名称
+
+        Returns:
+            文档的二进制数据，如果失败返回None
+        """
+        try:
+            kb_name = kb_name or config.default_kb_name
+            dataset = self._get_or_create_dataset(kb_name)
+            if not dataset:
+                logger.warning(f"知识库 '{kb_name}' 不存在")
+                return None
+
+            # 获取文档信息
+            docs = dataset.list_documents(id=doc_id)
+            if not docs:
+                logger.warning(f"文档 '{doc_id}' 不存在")
+                return None
+
+            doc = docs[0]
+            
+            # 使用SDK下载文档
+            try:
+                # 尝试获取文档的二进制数据
+                binary_data = doc.download()
+                if binary_data:
+                    logger.info(f"成功下载文档 {doc_id}，大小: {len(binary_data)} 字节")
+                    return binary_data
+            except Exception as e:
+                logger.warning(f"SDK下载失败: {e}")
+            
+            # 如果SDK方法失败，尝试其他方法
+            logger.warning(f"无法下载文档 {doc_id} 的原始二进制数据")
+            return None
+
+        except Exception as e:
+            logger.error(f"下载文档异常 {doc_id}: {e}")
             return None
 
     def get_document_chunks(self, doc_id: str, kb_name: Optional[str] = None) -> List[Dict[str, Any]]:
