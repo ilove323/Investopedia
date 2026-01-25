@@ -63,7 +63,7 @@ RAGFLOW_ENDPOINTS = {
     'delete': '/api/delete',
     'search': '/api/search',
     'qa': '/api/qa',
-    'documents': '/api/documents',
+    'documents': '/api/v1/datasets/{dataset_id}/documents',  # 文档列表 - 正确的端点
     'datasets': '/api/v1/datasets',  # 知识库列表 - 正确的端点
     'retrieval': '/api/v1/retrieval'  # 检索端点 - 正确的端点
 }
@@ -552,13 +552,38 @@ class RAGFlowClient:
             文档列表
         """
         try:
-            endpoint = RAGFLOW_ENDPOINTS['documents']
-            params = {'knowledge_base': knowledge_base_name}
+            # 首先获取知识库ID
+            dataset_id = self._get_knowledge_base_id(knowledge_base_name)
+            if not dataset_id:
+                logger.error(f"未找到知识库: {knowledge_base_name}")
+                return []
+            
+            # 使用正确的API endpoint格式
+            endpoint = RAGFLOW_ENDPOINTS['documents'].format(dataset_id=dataset_id)
+            
+            # 添加分页参数
+            params = {
+                'page': 1,
+                'page_size': 30,
+                'orderby': 'create_time',
+                'desc': True
+            }
+            
+            logger.debug(f"请求文档列表: {endpoint} 参数: {params}")
             response = self.client.get(endpoint, headers=self.headers, params=params)
 
-            documents = response.get('documents', []) or response.get('data', [])
-            logger.info(f"获取文档列表成功: {len(documents)} 个文档")
-            return documents
+            if isinstance(response, dict):
+                if response.get('code') == 0:
+                    # 根据API文档，文档在data.docs中
+                    documents = response.get('data', {}).get('docs', [])
+                    logger.info(f"获取文档列表成功: {len(documents)} 个文档")
+                    return documents
+                else:
+                    logger.error(f"API错误: {response.get('message', 'Unknown error')}")
+                    return []
+            else:
+                logger.error(f"意外的响应格式: {response}")
+                return []
 
         except APIError as e:
             logger.error(f"获取文档列表失败: {e}")

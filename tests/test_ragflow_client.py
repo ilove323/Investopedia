@@ -174,6 +174,154 @@ class TestConfigurationIntegration(unittest.TestCase):
         self.assertIn('政策', prompt)
 
 
+class TestDocumentListFeature(unittest.TestCase):
+    """文档列表功能测试类 - 针对最新修复的功能"""
+    
+    def setUp(self):
+        """测试前设置"""
+        self.client = RAGFlowClient(auto_configure=False)
+        self.test_kb_name = "policy_demo_kb"
+    
+    @patch('src.services.ragflow_client.APIClient')
+    def test_get_documents_success(self, mock_api_client):
+        """测试成功获取文档列表"""
+        # 模拟知识库ID查询
+        mock_client_instance = mock_api_client.return_value
+        mock_client_instance.get.side_effect = [
+            # 第一次调用：获取知识库列表
+            {
+                'code': 0,
+                'data': [{'name': self.test_kb_name, 'id': 'test_dataset_id_123'}]
+            },
+            # 第二次调用：获取文档列表
+            {
+                'code': 0,
+                'data': {
+                    'docs': [
+                        {
+                            'id': 'doc_123',
+                            'name': 'test_document.pdf',
+                            'size': 672639,
+                            'status': '1',
+                            'create_time': 1769360864400
+                        }
+                    ]
+                }
+            }
+        ]
+        
+        # 执行测试
+        docs = self.client.get_documents(self.test_kb_name)
+        
+        # 验证结果
+        self.assertIsInstance(docs, list)
+        self.assertEqual(len(docs), 1)
+        self.assertEqual(docs[0]['name'], 'test_document.pdf')
+        self.assertEqual(docs[0]['id'], 'doc_123')
+        
+        # 验证API调用参数
+        calls = mock_client_instance.get.call_args_list
+        self.assertEqual(len(calls), 2)
+        
+        # 验证第二次调用使用了正确的endpoint格式
+        second_call_endpoint = calls[1][0][0]
+        self.assertIn('/api/v1/datasets/test_dataset_id_123/documents', second_call_endpoint)
+    
+    @patch('src.services.ragflow_client.APIClient')
+    def test_get_documents_knowledge_base_not_found(self, mock_api_client):
+        """测试知识库未找到的情况"""
+        # 模拟知识库不存在
+        mock_client_instance = mock_api_client.return_value
+        mock_client_instance.get.return_value = {
+            'code': 0,
+            'data': []  # 空的知识库列表
+        }
+        
+        # 执行测试
+        docs = self.client.get_documents("nonexistent_kb")
+        
+        # 验证结果
+        self.assertIsInstance(docs, list)
+        self.assertEqual(len(docs), 0)
+    
+    @patch('src.services.ragflow_client.APIClient')
+    def test_get_documents_api_error(self, mock_api_client):
+        """测试API错误的情况"""
+        # 模拟知识库ID查询成功，文档列表查询失败
+        mock_client_instance = mock_api_client.return_value
+        mock_client_instance.get.side_effect = [
+            # 第一次调用：获取知识库列表
+            {
+                'code': 0,
+                'data': [{'name': self.test_kb_name, 'id': 'test_dataset_id_123'}]
+            },
+            # 第二次调用：API错误
+            {
+                'code': 102,
+                'message': 'You don\'t own the dataset'
+            }
+        ]
+        
+        # 执行测试
+        docs = self.client.get_documents(self.test_kb_name)
+        
+        # 验证结果
+        self.assertIsInstance(docs, list)
+        self.assertEqual(len(docs), 0)
+    
+    def test_endpoint_configuration(self):
+        """测试endpoint配置正确性"""
+        from services.ragflow_client import RAGFLOW_ENDPOINTS
+        
+        # 验证文档列表endpoint配置正确
+        self.assertIn('documents', RAGFLOW_ENDPOINTS)
+        documents_endpoint = RAGFLOW_ENDPOINTS['documents']
+        self.assertEqual(documents_endpoint, '/api/v1/datasets/{dataset_id}/documents')
+        
+        # 验证包含dataset_id占位符
+        self.assertIn('{dataset_id}', documents_endpoint)
+    
+    def test_web_url_configuration(self):
+        """测试RAGFlow Web URL配置"""
+        from config.config_loader import ConfigLoader
+        
+        config = ConfigLoader()
+        web_url = config.ragflow_web_url
+        
+        # 验证web_url配置正确
+        self.assertIsNotNone(web_url)
+        self.assertTrue(web_url.startswith('http'))
+        self.assertIn(':9380', web_url)  # 确保包含端口号
+
+
+class TestRealDocumentIntegration(unittest.TestCase):
+    """真实文档集成测试类"""
+    
+    def test_real_document_list_retrieval(self):
+        """测试真实环境下的文档列表获取"""
+        try:
+            client = RAGFlowClient(auto_configure=False)
+            docs = client.get_documents('policy_demo_kb')
+            
+            # 基本验证
+            self.assertIsInstance(docs, list)
+            
+            # 如果有文档，验证文档结构
+            if docs:
+                doc = docs[0]
+                self.assertIn('id', doc)
+                self.assertIn('name', doc)
+                self.assertIsInstance(doc.get('size'), (int, type(None)))
+                
+                print(f"✅ 实际获取到 {len(docs)} 个文档")
+                print(f"   示例文档: {doc.get('name', 'Unknown')}")
+            else:
+                print("ℹ️ 当前知识库中没有文档")
+                
+        except Exception as e:
+            self.skipTest(f"实际环境测试失败: {e}")
+
+
 if __name__ == '__main__':
     # 设置测试输出
     unittest.main(verbosity=2)

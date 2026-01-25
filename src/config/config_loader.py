@@ -200,6 +200,11 @@ class ConfigLoader:
         return os.getenv("RAGFLOW_API_KEY") or self.get("RAGFLOW", "api_key", "")
 
     @property
+    def ragflow_web_url(self) -> str:
+        """获取RAGFlow Web界面URL"""
+        return self.get("RAGFLOW", "web_url", self.ragflow_base_url)
+
+    @property
     def ragflow_timeout(self) -> int:
         return self.get_int("RAGFLOW", "timeout", 30)
 

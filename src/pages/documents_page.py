@@ -61,7 +61,7 @@ def show():
     with col_info:
         st.info(f"📂 当前知识库: **{kb_name}**")
     with col_upload:
-        ragflow_url = config.ragflow_base_url
+        ragflow_url = config.ragflow_web_url
         st.markdown(f"[📤 上传文档到RAGFlow]({ragflow_url})")
 
     # 标签页

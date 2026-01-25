@@ -13,6 +13,7 @@ tests/
 ├── test_ragflow_client.py           # RAGFlow客户端测试  
 ├── test_ragflow_config_update.py    # RAGFlow配置更新测试
 ├── test_ragflow_api_exploration.py  # RAGFlow API探索测试
+├── test_document_list_fix.py        # 文档列表功能修复验证测试
 ├── test_business/                   # 业务逻辑测试
 ├── test_database/                   # 数据库测试
 └── test_services/                   # 服务层测试
@@ -41,10 +42,21 @@ tests/
 - API请求构建和处理
 - 数据格式转换
 - 错误处理和重试机制
+- **文档列表功能修复验证** *(新增)*
 
 **测试类**:
 - `TestRAGFlowClient`: 客户端基础功能
 - `TestRAGFlowAPI`: API接口调用
+- `TestDocumentListFeature`: 文档列表功能测试 *(新增)*
+- `TestRealDocumentIntegration`: 真实文档集成测试 *(新增)*
+
+**新增测试用例** *(2026-01-26)*:
+- `test_get_documents_success()`: 测试成功获取文档列表
+- `test_get_documents_knowledge_base_not_found()`: 测试知识库未找到场景
+- `test_get_documents_api_error()`: 测试API错误处理
+- `test_endpoint_configuration()`: 测试endpoint配置正确性
+- `test_web_url_configuration()`: 测试Web URL配置
+- `test_real_document_list_retrieval()`: 测试真实环境文档获取
 
 ### 3. test_ragflow_config_update.py
 **目的**: 测试RAGFlow配置更新的完整流程
@@ -69,6 +81,27 @@ tests/
 
 **测试类**:
 - `TestRAGFlowAPIExploration`: API探索和性能测试
+
+### 5. test_document_list_fix.py
+**目的**: 专门验证RAGFlow文档列表功能修复 *(新增 2026-01-26)*
+
+**测试内容**:
+- API endpoint修复验证 (`/api/v1/datasets/{dataset_id}/documents`)
+- Web URL配置修复验证 (端口号:9380)
+- get_documents()方法完整工作流程测试
+- 错误处理机制验证
+- 真实环境集成测试
+
+**测试类**:
+- `TestDocumentListFix`: 核心功能修复验证
+- `TestDocumentsPageIntegration`: 页面集成测试
+
+**验证的修复内容**:
+- 修复前: HTTP 404错误 `/api/documents` not found
+- 修复后: 正确调用 `/api/v1/datasets/{dataset_id}/documents`
+- 修复前: Web URL缺少端口号
+- 修复后: 完整URL `http://117.21.184.150:9380`
+- 当前状态: 成功获取1个政策文档 (672KB)
 
 ## 运行测试
 
@@ -104,6 +137,17 @@ python run_tests.py
 ```bash
 python -m unittest test_config_system.py
 python -m unittest test_ragflow_client.py -v
+
+# 运行文档列表修复验证测试
+python test_document_list_fix.py
+
+# 快速验证文档列表功能
+python -c "
+from src.services.ragflow_client import RAGFlowClient
+client = RAGFlowClient(auto_configure=False)
+docs = client.get_documents('policy_demo_kb')
+print(f'✅ 文档列表功能正常: {len(docs)} 个文档')
+"
 ```
 
 ### 运行单个测试类或方法
