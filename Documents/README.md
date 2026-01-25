@@ -40,7 +40,7 @@ streamlit run app.py
 
 ## 🎯 主要功能
 
-- **RAGFlow文档查看器** - 查看和搜索RAGFlow知识库中的文档
+- **RAGFlow文档查看器** - 完整的文档管理界面，支持源文件查看、分块详情、文档搜索、状态监控
 - **智能摘要生成** - 基于DeepSeek API的多层次文档摘要
 - **知识图谱构建** - NetworkX + Pyvis交互式图谱可视化
 - **语音问答系统** - Whisper语音识别 + 智能问答
