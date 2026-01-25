@@ -405,6 +405,33 @@ class APIClient:
         url = self._build_url(endpoint)
         return self._request('DELETE', url, headers=headers)
 
+    def patch(self, endpoint: str, headers: Optional[Dict[str, str]] = None,
+              json_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        发送PATCH请求
+
+        说明：
+            PATCH请求用于部分更新资源。与PUT不同，PATCH只更新提供的字段。
+
+        Args:
+            endpoint (str): API端点
+            headers (dict, optional): 额外的HTTP请求头
+            json_data (dict, optional): 要发送的JSON数据
+
+        Returns:
+            dict: 解析后的响应JSON数据
+
+        Raises:
+            APIError: 请求失败或HTTP错误时抛出
+
+        示例：
+            >>> client = APIClient('http://localhost:9380')
+            >>> data = {'name': 'new_name'}
+            >>> response = client.patch('/api/resource/1', json_data=data)
+        """
+        url = self._build_url(endpoint)
+        return self._request('PATCH', url, headers=headers, json_data=json_data)
+
     def _request(self, method: str, url: str, headers: Optional[Dict[str, str]] = None,
                  params: Optional[Dict[str, Any]] = None,
                  data: Optional[Union[Dict[str, Any], str]] = None,

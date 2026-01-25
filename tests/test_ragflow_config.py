@@ -49,6 +49,19 @@ def test_ragflow_connection():
         # 获取客户端（会自动应用配置）
         client = get_ragflow_client()
         
+        # 测试知识库存在性
+        config = get_config()
+        kb_name = getattr(config, 'ragflow_kb_name', 'policy_demo_kb')
+        
+        print(f"\n检查知识库: {kb_name}")
+        kb_exists = client._check_knowledge_base_exists(kb_name)
+        
+        if kb_exists:
+            print(f"✅ 知识库 '{kb_name}' 存在")
+        else:
+            print(f"❌ 知识库 '{kb_name}' 不存在")
+            print(f"💡 请在RAGFlow界面创建知识库: {config.ragflow_base_url}")
+        
         # 检查健康状态
         if client.check_health():
             print("✅ RAGFlow服务连接正常")
@@ -76,14 +89,37 @@ def test_knowledge_base_config():
             print("⚠️ 知识库配置失败或部分失败")
             
         # 获取当前配置
-        print("\n当前知识库配置:")
+        print("\n📋 知识库当前配置:")
         current_config = client.get_knowledge_base_config()
         
         if current_config:
-            for key, value in current_config.items():
-                print(f"  {key}: {value}")
+            for section, values in current_config.items():
+                print(f"\n  {section}:")
+                for key, value in values.items():
+                    print(f"    {key}: {value}")
+                    
+            # 配置对比
+            print(f"\n🔍 配置对比分析:")
+            config = get_config()
+            expected_config = {**config.ragflow_document_config, **config.ragflow_advanced_config}
+            
+            actual_basic = current_config.get("知识库基本信息", {})
+            actual_parser = current_config.get("解析器配置", {})
+            
+            comparisons = [
+                ("分块大小", expected_config.get('chunk_size', 800), actual_parser.get('分块Token数')),
+                ("相似度阈值", expected_config.get('similarity_threshold', 0.3), actual_basic.get('相似度阈值')),
+                ("分块方法", expected_config.get('pdf_parser', 'deepdoc'), actual_basic.get('分块方法')),
+                ("元数据提取", expected_config.get('metadata_extraction', True), actual_parser.get('启用元数据')),
+                ("表格识别", expected_config.get('table_recognition', True), actual_parser.get('表格解析')),
+            ]
+            
+            for name, expected, actual in comparisons:
+                status = "✅" if str(expected).lower() == str(actual).lower() else "❌"
+                print(f"    {status} {name}: 期望={expected}, 实际={actual}")
+                
         else:
-            print("  无法获取当前配置")
+            print("  ❌ 无法获取当前配置")
             
     except Exception as e:
         print(f"❌ 知识库配置测试失败: {e}")

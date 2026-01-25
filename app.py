@@ -200,7 +200,7 @@ def check_services():
                 st.info("知识库: " + getattr(config, 'ragflow_kb_name', 'policy_demo_kb'))
                 
                 # 显示部分配置参数
-                doc_config = config.ragflow_document_config()
+                doc_config = config.ragflow_document_config  # 这是property，不需要()
                 st.text(f"分块大小: {doc_config.get('chunk_size', 800)}")
                 st.text(f"PDF解析器: {doc_config.get('pdf_parser', 'deepdoc')}")
                 st.text(f"检索方法: {doc_config.get('retrieval_method', 'General')}")

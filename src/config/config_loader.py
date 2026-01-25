@@ -1,9 +1,10 @@
 """
-配置加载器 - 从config.ini读取配置
+配置加载器 - 从config.ini和知识库配置文件读取配置
 """
 import configparser
 import os
 from pathlib import Path
+from typing import Dict, Optional
 
 
 class ConfigLoader:
@@ -28,6 +29,9 @@ class ConfigLoader:
 
         # 创建必要的目录
         self._ensure_directories()
+        
+        # 知识库配置缓存
+        self._kb_configs = {}
 
     def _find_config_file(self) -> Path:
         """查找config.ini文件"""
@@ -47,6 +51,30 @@ class ConfigLoader:
         ]
         for dir_path in dirs:
             dir_path.mkdir(parents=True, exist_ok=True)
+
+    def _load_kb_config(self, kb_name: str) -> Optional[configparser.ConfigParser]:
+        """加载知识库专用配置文件"""
+        if kb_name in self._kb_configs:
+            return self._kb_configs[kb_name]
+            
+        try:
+            # 获取知识库配置文件名
+            config_filename = self.get("KNOWLEDGE_BASES", kb_name, f"{kb_name}.ini")
+            kb_config_dir = self.get("KNOWLEDGE_BASES", "knowledgebase_config_dir", "config/knowledgebase")
+            config_path = self.project_root / kb_config_dir / config_filename
+            
+            if config_path.exists():
+                kb_config = configparser.ConfigParser()
+                kb_config.read(config_path, encoding='utf-8')
+                self._kb_configs[kb_name] = kb_config
+                return kb_config
+            else:
+                print(f"Warning: 知识库配置文件 {config_path} 不存在")
+                return None
+                
+        except Exception as e:
+            print(f"Error: 加载知识库配置 {kb_name} 失败: {e}")
+            return None
 
     def get(self, section: str, option: str, fallback=None):
         """获取配置值"""
@@ -413,3 +441,149 @@ class ConfigLoader:
     @property
     def rotating_backup_count(self) -> int:
         return self.get_int("LOGGING", "rotating_backup_count", 5)
+    
+    # ==================== 知识库配置系统 ====================
+    
+    @property
+    def default_kb_name(self) -> str:
+        """获取默认知识库名称"""
+        return self.get("KNOWLEDGE_BASES", "default_kb", "policy_demo_kb")
+    
+    @property
+    def prompts_dir(self) -> Path:
+        """获取提示词目录路径"""
+        prompts_dir = self.get("KNOWLEDGE_BASES", "prompts_dir", "config/prompts")
+        return self.project_root / prompts_dir
+    
+    def get_kb_config(self, kb_name: str = None) -> Dict:
+        """获取指定知识库的完整配置
+        
+        Args:
+            kb_name: 知识库名称，默认使用default_kb
+            
+        Returns:
+            知识库配置字典
+        """
+        if kb_name is None:
+            kb_name = self.default_kb_name
+            
+        kb_config = self._load_kb_config(kb_name)
+        if not kb_config:
+            return {}
+            
+        try:
+            # 构建完整配置
+            config = {}
+            
+            # 基本信息
+            config.update({
+                "kb_name": kb_config.get("KNOWLEDGE_BASE", "name", fallback=kb_name),
+                "kb_description": kb_config.get("KNOWLEDGE_BASE", "description", fallback=""),
+                "kb_language": kb_config.get("KNOWLEDGE_BASE", "language", fallback="Chinese"),
+            })
+            
+            # 文档处理配置
+            config.update({
+                "chunk_size": kb_config.getint("DOCUMENT_PROCESSING", "chunk_size", fallback=800),
+                "chunk_overlap": kb_config.getint("DOCUMENT_PROCESSING", "chunk_overlap", fallback=100),
+                "chunk_method": kb_config.get("DOCUMENT_PROCESSING", "chunk_method", fallback="naive"),
+                "pdf_parser": kb_config.get("DOCUMENT_PROCESSING", "pdf_parser", fallback="deepdoc"),
+                "auto_metadata": kb_config.getboolean("DOCUMENT_PROCESSING", "auto_metadata", fallback=True),
+                "table_recognition": kb_config.getboolean("DOCUMENT_PROCESSING", "table_recognition", fallback=True),
+                "formula_recognition": kb_config.getboolean("DOCUMENT_PROCESSING", "formula_recognition", fallback=False),
+                "ocr_enabled": kb_config.getboolean("DOCUMENT_PROCESSING", "ocr_enabled", fallback=True),
+                "layout_recognize": kb_config.get("DOCUMENT_PROCESSING", "layout_recognize", fallback="deepdoc"),
+            })
+            
+            # 检索配置
+            config.update({
+                "similarity_threshold": kb_config.getfloat("RETRIEVAL", "similarity_threshold", fallback=0.3),
+                "max_tokens": kb_config.getint("RETRIEVAL", "max_tokens", fallback=2048),
+                "graph_retrieval": kb_config.getboolean("RETRIEVAL", "graph_retrieval", fallback=True),
+                "entity_normalization": kb_config.getboolean("RETRIEVAL", "entity_normalization", fallback=True),
+                "max_clusters": kb_config.getint("RETRIEVAL", "max_clusters", fallback=50),
+            })
+            
+            # 问答配置
+            config.update({
+                "qa_max_tokens": kb_config.getint("QA", "max_tokens", fallback=2000),
+                "qa_temperature": kb_config.getfloat("QA", "temperature", fallback=0.1),
+                "qa_top_p": kb_config.getfloat("QA", "top_p", fallback=0.9),
+            })
+            
+            # 提示词配置
+            prompt_file = kb_config.get("QA", "system_prompt_file", fallback=f"{kb_name}.txt")
+            config["system_prompt"] = self._load_prompt_file(prompt_file)
+            
+            return config
+            
+        except Exception as e:
+            print(f"Error: 解析知识库配置 {kb_name} 失败: {e}")
+            return {}
+    
+    def _load_prompt_file(self, filename: str) -> str:
+        """加载提示词文件内容"""
+        try:
+            file_path = self.prompts_dir / filename
+            if file_path.exists():
+                return file_path.read_text(encoding='utf-8')
+            else:
+                print(f"Warning: 提示词文件 {file_path} 不存在")
+                return "你是一个专业的智能助手，请基于提供的文档内容准确回答用户问题。"
+        except Exception as e:
+            print(f"Error: 读取提示词文件 {filename} 失败: {e}")
+            return "你是一个专业的智能助手，请基于提供的文档内容准确回答用户问题。"
+    
+    def get_available_kb_names(self) -> list:
+        """获取所有可用的知识库名称"""
+        kb_names = []
+        if self.config.has_section("KNOWLEDGE_BASES"):
+            for key, value in self.config.items("KNOWLEDGE_BASES"):
+                if key.endswith("_kb") or key not in ["default_kb", "knowledgebase_config_dir", "prompts_dir"]:
+                    if not key.startswith("default") and not key.endswith("_dir"):
+                        kb_names.append(key)
+        return kb_names
+    
+    # ==================== RAGFlow连接配置 ====================
+    
+    @property
+    def ragflow_host(self) -> str:
+        return os.getenv("RAGFLOW_HOST") or self.get("RAGFLOW", "host", "localhost")
+    
+    @property  
+    def ragflow_port(self) -> int:
+        port = os.getenv("RAGFLOW_PORT") or self.get("RAGFLOW", "port")
+        if port:
+            return int(port)
+        return 9380
+    
+    @property
+    def ragflow_base_url(self) -> str:
+        return f"http://{self.ragflow_host}:{self.ragflow_port}"
+    
+    @property
+    def ragflow_api_key(self) -> str:
+        return os.getenv("RAGFLOW_API_KEY") or self.get("RAGFLOW", "api_key", "")
+    
+    @property
+    def ragflow_timeout(self) -> int:
+        return self.get_int("RAGFLOW", "timeout", 30)
+    
+    @property
+    def ragflow_retry_times(self) -> int:
+        return self.get_int("RAGFLOW", "retry_times", 3)
+    
+    @property
+    def ragflow_retry_delay(self) -> int:
+        return self.get_int("RAGFLOW", "retry_delay", 1)
+    
+    # ==================== 兼容性方法 ====================
+    
+    @property
+    def policy_kb_name(self) -> str:
+        """兼容性方法：获取政策知识库名称"""
+        return self.default_kb_name
+    
+    def get_policy_config(self) -> dict:
+        """兼容性方法：获取政策库配置"""
+        return self.get_kb_config("policy_demo_kb")
