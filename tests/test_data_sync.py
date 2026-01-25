@@ -110,6 +110,8 @@ class TestDataSyncService(unittest.TestCase):
             'create_time': '2026-01-26T10:00:00'
         }
         self.mock_ragflow.get_documents.return_value = [mock_doc]
+        # 模拟获取文档内容
+        self.mock_ragflow.get_document_content.return_value = '这是一个测试政策文档内容'
         
         # DAO返回不存在的政策
         self.mock_dao.get_policy_by_ragflow_id.return_value = None
@@ -117,7 +119,7 @@ class TestDataSyncService(unittest.TestCase):
         self.mock_dao.get_or_create_tag.return_value = 1
         
         # 元数据提取器返回数据
-        self.mock_metadata_extractor.extract_from_content.return_value = {
+        self.mock_metadata_extractor.extract_all.return_value = {
             'policy_type': 'special_bonds',
             'issuing_authority': '财政部',
             'region': '全国',
@@ -125,11 +127,11 @@ class TestDataSyncService(unittest.TestCase):
             'document_number': '财预〔2026〕1号'
         }
         
-        # 标签生成器返回标签
+        # 标签生成器返回标签（字典格式）
         self.mock_tag_generator.generate_tags.return_value = [
-            ('专项债券', 'policy_type'),
-            ('财政部', 'authority'),
-            ('全国', 'region')
+            {'name': '专项债券', 'type': 'policy_type'},
+            {'name': '财政部', 'type': 'authority'},
+            {'name': '全国', 'type': 'region'}
         ]
         
         sync_service = DataSyncService()
@@ -263,10 +265,15 @@ class TestDataSyncService(unittest.TestCase):
 
     def test_extract_policy_metadata(self):
         """测试元数据提取"""
-        with patch('src.services.data_sync.RAGFlowClient'), \
+        with patch('src.services.data_sync.RAGFlowClient') as mock_ragflow_class, \
              patch('src.services.data_sync.PolicyDAO'), \
              patch('src.services.data_sync.MetadataExtractor') as mock_meta_class, \
              patch('src.services.data_sync.TagGenerator'):
+            
+            # 设置mock RAGFlow客户端
+            mock_ragflow = Mock()
+            mock_ragflow_class.return_value = mock_ragflow
+            mock_ragflow.get_document_content.return_value = '测试政策内容'
             
             mock_metadata_extractor = Mock()
             mock_meta_class.return_value = mock_metadata_extractor
@@ -282,7 +289,7 @@ class TestDataSyncService(unittest.TestCase):
             }
             
             # 模拟元数据提取器
-            mock_metadata_extractor.extract_from_content.return_value = {
+            mock_metadata_extractor.extract_all.return_value = {
                 'policy_type': 'special_bonds',
                 'issuing_authority': '财政部'
             }

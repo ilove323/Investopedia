@@ -119,29 +119,33 @@ def initialize_session_state():
 def initialize_ragflow_config():
     """初始化RAGFlow配置
     
-    在应用启动时自动配置RAGFlow知识库参数
+    在应用启动时自动同步知识库配置到RAGFlow
     """
     try:
-        if 'ragflow_configured' not in st.session_state:
-            logger.info("开始初始化RAGFlow配置...")
+        if 'ragflow_config_synced' not in st.session_state:
+            logger.info("开始同步RAGFlow配置...")
             
-            # 获取RAGFlow客户端（会自动应用配置）
-            ragflow = get_ragflow_client()
+            from src.services.config_sync import sync_ragflow_configs
             
-            # 验证配置是否生效
-            kb_name = getattr(config, 'ragflow_kb_name', 'policy_demo_kb')
-            current_config = ragflow.get_knowledge_base_config(kb_name)
+            # 同步所有知识库配置
+            results = sync_ragflow_configs()
             
-            if current_config:
-                logger.info(f"RAGFlow知识库配置已生效: {kb_name}")
-                st.session_state.ragflow_configured = True
+            # 记录同步状态
+            st.session_state.ragflow_config_synced = True
+            st.session_state.ragflow_sync_results = results
+            
+            # 显示同步结果
+            success_count = sum(1 for r in results.values() if r)
+            total_count = len(results)
+            
+            if success_count == total_count:
+                logger.info(f"✅ RAGFlow配置同步完成: {success_count}/{total_count}")
             else:
-                logger.warning("RAGFlow配置可能未完全生效")
-                st.session_state.ragflow_configured = False
+                logger.warning(f"⚠️ RAGFlow配置部分同步: {success_count}/{total_count}")
                 
     except Exception as e:
-        logger.warning(f"RAGFlow配置初始化失败: {e}")
-        st.session_state.ragflow_configured = False
+        logger.warning(f"RAGFlow配置同步失败: {e}")
+        st.session_state.ragflow_config_synced = False
 
 
 def check_services():
