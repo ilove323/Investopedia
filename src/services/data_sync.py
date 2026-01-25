@@ -108,18 +108,30 @@ class DataSyncService:
         
         if existing_policy:
             # 更新现有政策
-            self.dao.update_policy(existing_policy['id'], metadata)
-            sync_results["updated_policies"] += 1
-            logger.info(f"更新政策: {metadata['title']}")
+            try:
+                self.dao.update_policy(existing_policy['id'], metadata)
+                sync_results["updated_policies"] += 1
+                logger.info(f"更新政策: {metadata['title']}")
+            except Exception as e:
+                logger.warning(f"更新政策失败: {metadata.get('title')}, 错误: {e}")
+                sync_results["failed_documents"] += 1
         else:
             # 创建新政策
-            policy_id = self.dao.create_policy(metadata)
-            
-            # 生成和添加标签
-            self._add_policy_tags(policy_id, metadata)
-            
-            sync_results["new_policies"] += 1
-            logger.info(f"创建新政策: {metadata['title']}")
+            try:
+                policy_id = self.dao.create_policy(metadata)
+                
+                # 生成和添加标签
+                self._add_policy_tags(policy_id, metadata)
+                
+                sync_results["new_policies"] += 1
+                logger.info(f"创建新政策: {metadata['title']}")
+            except Exception as e:
+                # 如果文号已存在，记录警告但不视为失败
+                if '已存在' in str(e) or 'UNIQUE constraint' in str(e):
+                    logger.info(f"政策已存在，跳过: {metadata.get('title')}")
+                else:
+                    logger.warning(f"创建政策失败: {metadata.get('title')}, 错误: {e}")
+                    sync_results["failed_documents"] += 1
     
     def _extract_policy_metadata(self, doc: Dict[str, Any]) -> Dict[str, Any]:
         """

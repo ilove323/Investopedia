@@ -67,7 +67,7 @@ def show():
                     
                     # 清空图谱缓存，强制重新构建
                     st.session_state.graph = None
-                    st.experimental_rerun()
+                    st.rerun()
                     
                 except Exception as e:
                     st.error(f"同步失败: {str(e)}")

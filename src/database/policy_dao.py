@@ -389,32 +389,34 @@ class PolicyDAO:
             logger.error(f"获取统计信息失败: {e}")
             raise
 
-    def get_or_create_tag(self, tag_name: str, tag_type: str = "auto") -> int:
+    def get_or_create_tag(self, tag_name: str, tag_type: str = "general") -> int:
         """
         获取或创建标签
         
         Args:
             tag_name: 标签名称
-            tag_type: 标签类型
+            tag_type: 标签所属政策类型（用于 policy_type 字段）
             
         Returns:
             标签ID
         """
         try:
-            # 先尝试查找现有标签
-            query = "SELECT id FROM tags WHERE name = ? AND type = ?"
-            result = self.db.execute_query(query, (tag_name, tag_type))
+            # 先尝试查找现有标签（只按名称查找）
+            query = "SELECT id FROM tags WHERE name = ?"
+            result = self.db.execute_query(query, (tag_name,))
             
             if result:
                 return result[0][0]  # 返回现有标签ID
             
-            # 创建新标签
+            # 创建新标签（使用 policy_type 字段而不是 type）
             insert_query = """
-            INSERT INTO tags (name, type, description, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO tags (name, policy_type, description, level, created_at)
+            VALUES (?, ?, ?, ?, ?)
             """
-            description = f"自动生成的{tag_type}标签: {tag_name}"
-            params = (tag_name, tag_type, description, datetime.now().isoformat())
+            description = f"自动生成的标签: {tag_name}"
+            # policy_type 可以是 special_bonds, franchise, data_assets 或 general
+            policy_type_value = tag_type if tag_type in ['special_bonds', 'franchise', 'data_assets'] else None
+            params = (tag_name, policy_type_value, description, 3, datetime.now().isoformat())
             
             return self.db.execute_query(insert_query, params, return_id=True)
             
