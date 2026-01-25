@@ -133,10 +133,18 @@ class DataSyncService:
         """
         # 基础信息
         title = doc.get('name', '').replace('.pdf', '').replace('.docx', '')
-        content = doc.get('content', '')
+        doc_id = doc.get('id')
+        
+        # 从RAGFlow获取文档实际内容
+        try:
+            content = self.ragflow.get_document_content(doc_id) or ''
+            logger.info(f"成功获取文档内容，长度: {len(content)}")
+        except Exception as e:
+            logger.warning(f"获取文档内容失败: {e}")
+            content = ''
         
         metadata = {
-            'ragflow_document_id': doc.get('id'),
+            'ragflow_document_id': doc_id,
             'title': title,
             'content': content,
             'file_path': doc.get('location', ''),
@@ -148,12 +156,23 @@ class DataSyncService:
         }
         
         # 使用元数据提取器进一步分析
-        try:
-            extracted_metadata = self.metadata_extractor.extract_from_content(content)
-            metadata.update(extracted_metadata)
-        except Exception as e:
-            logger.warning(f"元数据提取失败: {e}")
-            # 设置默认值
+        if content:
+            try:
+                extracted_metadata = self.metadata_extractor.extract_all(content)
+                metadata.update(extracted_metadata)
+                logger.info(f"元数据提取完成: policy_type={extracted_metadata.get('policy_type')}")
+            except Exception as e:
+                logger.warning(f"元数据提取失败: {e}")
+                # 设置默认值
+                metadata.update({
+                    'policy_type': 'unknown',
+                    'issuing_authority': '',
+                    'region': '',
+                    'effective_date': None,
+                    'document_number': ''
+                })
+        else:
+            logger.warning(f"文档内容为空，无法提取元数据")
             metadata.update({
                 'policy_type': 'unknown',
                 'issuing_authority': '',
@@ -173,10 +192,20 @@ class DataSyncService:
             metadata: 政策元数据
         """
         try:
-            tags = self.tag_generator.generate_tags(metadata)
-            for tag_name, tag_type in tags:
-                tag_id = self.dao.get_or_create_tag(tag_name, tag_type)
-                self.dao.add_policy_tag(policy_id, tag_id)
+            content = metadata.get('content', '')
+            policy_type = metadata.get('policy_type')
+            
+            if not content:
+                logger.warning(f"政策内容为空，跳过标签生成")
+                return
+                
+            tags = self.tag_generator.generate_tags(content, policy_type=policy_type)
+            for tag in tags:
+                tag_name = tag.get('name')
+                tag_type = tag.get('type', 'general')
+                if tag_name:
+                    tag_id = self.dao.get_or_create_tag(tag_name, tag_type)
+                    self.dao.add_policy_tag(policy_id, tag_id)
         except Exception as e:
             logger.warning(f"标签生成失败: {e}")
     

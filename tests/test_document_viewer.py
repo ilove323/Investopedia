@@ -119,13 +119,25 @@ class TestDocumentViewer:
             file_types = {}
             for doc in documents:
                 doc_name = doc.get('name', '')
-                if '.' in doc_name:
+                # 优先检查 RAGFlow API 返回的 type 字段
+                doc_type = doc.get('type', '').lower()
+                
+                # 多方法检测文件类型
+                if doc_type:
+                    # 如果API返回了type字段，使用它
+                    ext = doc_type
+                elif '.' in doc_name:
+                    # 从文件名提取扩展名
                     ext = doc_name.split('.')[-1].lower()
-                    file_types[ext] = file_types.get(ext, 0) + 1
+                else:
+                    # 无法确定类型
+                    ext = 'unknown'
+                
+                file_types[ext] = file_types.get(ext, 0) + 1
             
-            print("📊 文件类型统计:")
+            print("📊 按类型分布:")
             for ext, count in file_types.items():
-                print(f"  .{ext}: {count} 个")
+                print(f"  {ext}: {count}")
             
             # 测试不同类型的处理
             for doc in documents:

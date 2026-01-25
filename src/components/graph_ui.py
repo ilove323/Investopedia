@@ -110,29 +110,44 @@ def render_network_graph(graph: nx.Graph, title: str = "知识图谱") -> None:
         net = Network(
             height="600px",
             width="100%",
-            directed=False,
-            physics=True
+            directed=False
         )
 
         # 添加节点和边
         net.from_nx(graph)
 
-        # 配置物理引擎
-        net.physics = True
-        net.show_physics = True
+        # 配置物理引擎（使用 set_options 方法）
+        net.set_options("""
+        {
+            "physics": {
+                "enabled": true,
+                "stabilization": {
+                    "enabled": true,
+                    "iterations": 100
+                }
+            }
+        }
+        """)
 
         # 保存为HTML
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False) as f:
-            net.show(f.name)
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+            net.save_graph(f.name)
             temp_path = f.name
 
         # 在Streamlit中显示
-        with open(temp_path, 'r', encoding='utf-8') as f:
-            html_string = f.read()
-        st.components.v1.html(html_string, height=650)
-
-        # 清理临时文件
-        Path(temp_path).unlink()
+        try:
+            with open(temp_path, 'r', encoding='utf-8') as f:
+                html_string = f.read()
+            
+            # 使用 Streamlit 的 HTML 组件显示
+            import streamlit.components.v1 as components
+            components.html(html_string, height=650, scrolling=True)
+        finally:
+            # 清理临时文件
+            try:
+                Path(temp_path).unlink()
+            except:
+                pass
 
     except Exception as e:
         st.error(f"图谱渲染失败: {str(e)}")
