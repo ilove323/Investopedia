@@ -440,6 +440,109 @@ class RAGFlowClient:
             logger.error(f"获取文档列表异常: {e}")
             return []
 
+    def get_document_content(self, doc_id: str) -> Optional[str]:
+        """
+        获取文档的完整内容
+
+        Args:
+            doc_id: 文档ID
+
+        Returns:
+            文档内容，失败返回None
+        """
+        try:
+            # RAGFlow可能的文档内容端点
+            possible_endpoints = [
+                f"/api/v1/documents/{doc_id}/content",
+                f"/api/v1/documents/{doc_id}",
+                f"/api/documents/{doc_id}/content",
+                f"/v1/documents/{doc_id}/content",
+            ]
+            
+            for endpoint in possible_endpoints:
+                try:
+                    response = self.client.get(endpoint, headers=self.headers)
+                    
+                    if isinstance(response, dict):
+                        # 尝试从不同的响应字段获取内容
+                        content = (response.get('content') or 
+                                 response.get('data', {}).get('content') or
+                                 response.get('text'))
+                        
+                        if content:
+                            logger.info(f"成功获取文档内容 (doc_id: {doc_id})")
+                            return content
+                            
+                except APIError as e:
+                    if "404" not in str(e):
+                        logger.debug(f"端点 {endpoint} 失败: {e}")
+                    continue
+            
+            # 如果所有直接端点都失败，尝试通过搜索获取内容
+            logger.info(f"尝试通过搜索获取文档内容: {doc_id}")
+            search_results = self.search(f"doc_id:{doc_id}", top_k=50)
+            
+            if search_results:
+                # 合并搜索结果的内容
+                content_parts = []
+                for result in search_results:
+                    if result.get('content'):
+                        content_parts.append(result['content'])
+                
+                if content_parts:
+                    return "\n\n".join(content_parts)
+            
+            logger.warning(f"无法获取文档内容: {doc_id}")
+            return None
+
+        except Exception as e:
+            logger.error(f"获取文档内容失败 (doc_id: {doc_id}): {e}")
+            return None
+
+    def get_document_chunks(self, doc_id: str) -> List[Dict[str, Any]]:
+        """
+        获取文档的分块信息
+
+        Args:
+            doc_id: 文档ID
+
+        Returns:
+            分块信息列表
+        """
+        try:
+            # RAGFlow可能的分块端点
+            possible_endpoints = [
+                f"/api/v1/documents/{doc_id}/chunks",
+                f"/api/v1/documents/{doc_id}/segments",
+                f"/api/documents/{doc_id}/chunks",
+                f"/v1/documents/{doc_id}/chunks",
+            ]
+            
+            for endpoint in possible_endpoints:
+                try:
+                    response = self.client.get(endpoint, headers=self.headers)
+                    
+                    if isinstance(response, dict):
+                        chunks = (response.get('chunks') or 
+                                response.get('segments') or
+                                response.get('data', []))
+                        
+                        if chunks:
+                            logger.info(f"成功获取文档分块 (doc_id: {doc_id}): {len(chunks)} 块")
+                            return chunks
+                            
+                except APIError as e:
+                    if "404" not in str(e):
+                        logger.debug(f"端点 {endpoint} 失败: {e}")
+                    continue
+            
+            logger.warning(f"无法获取文档分块: {doc_id}")
+            return []
+
+        except Exception as e:
+            logger.error(f"获取文档分块失败 (doc_id: {doc_id}): {e}")
+            return []
+
     def configure_knowledge_base(self, kb_name: str = None) -> bool:
         """手动配置知识库
         

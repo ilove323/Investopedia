@@ -1,5 +1,8 @@
 # 📚 文档导航
 
+<!-- 文档类型: 文档索引 | 版本: 2026.1 | 更新时间: 2026-01-25 -->
+<!-- 描述: 项目所有文档的导航索引，帮助快速定位和查找文档 -->
+
 > 快速找到你需要的文档
 
 ---
@@ -8,9 +11,9 @@
 
 | 文档 | 内容 | 阅读时间 |
 |------|------|---------|
-| **[STATUS_SUMMARY.md](STATUS_SUMMARY.md)** | ⭐ **首先看这个** - 系统状态、功能完成度、常见问题 | 5分钟 |
-| **[SYSTEM_WORKFLOW.md](SYSTEM_WORKFLOW.md)** | 核心工作流程、数据流转、实现细节 | 15分钟 |
-| **[QUICK_START.md](QUICK_START.md)** | 快速开始、最新修复、工作计划 | 10分钟 |
+| **[README.md](README.md)** | ⭐ **项目概述** - 功能特性、系统架构、使用说明 | 15分钟 |
+| **[QUICK_START.md](QUICK_START.md)** | 快速部署指南、前置要求、最小配置 | 10分钟 |
+| **[STATUS_SUMMARY.md](STATUS_SUMMARY.md)** | 系统状态总结、完成功能、当前问题 | 5分钟 |
 
 ---
 
@@ -18,10 +21,11 @@
 
 | 文档 | 用途 | 更新日期 |
 |------|------|---------|
-| [README.md](README.md) | 项目总体介绍、技术栈、功能说明 | 2026-01-24 |
-| [PROGRESS.md](PROGRESS.md) | 详细进度统计、BUG修复记录、性能指标 | 2026-01-24 |
-| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | 代码实现指导、设计模式、代码模板 | 2026-01-24 |
-| [TODO.md](TODO.md) | 所有待做任务、完成状态、优先级 | 2026-01-24 |
+| [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) | 系统架构设计、模块划分、技术栈 | 2026-01-25 |
+| [RAGFLOW_CONFIG_GUIDE.md](RAGFLOW_CONFIG_GUIDE.md) | RAGFlow配置参数说明、自动配置功能 | 2026-01-25 |
+| [PROGRESS.md](PROGRESS.md) | 开发进度报告、功能完成情况、里程碑 | 2026-01-25 |
+| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | 详细开发计划、代码模板、实现指导 | 2026-01-25 |
+| [TODO.md](TODO.md) | 任务管理文档、优先级、执行计划 | 2026-01-25 |
 
 ---
 
