@@ -43,6 +43,10 @@ def show():
             "date_from": None,
             "date_to": None
         }
+    
+    # 初始化完整图谱缓存
+    if "full_graph" not in st.session_state:
+        st.session_state.full_graph = None
 
     # 分栏布局：侧边栏过滤器 + 主要内容
     col_sidebar, col_main = st.columns([1, 4])
@@ -51,6 +55,22 @@ def show():
         st.subheader("过滤条件")
         filters = render_search_filters_sidebar()
         st.session_state.search_filters = filters
+        
+        st.divider()
+        
+        # 图谱缓存管理
+        st.subheader("图谱缓存")
+        if st.button("🔄 刷新图谱缓存", use_container_width=True):
+            st.session_state.full_graph = None
+            with st.spinner("正在构建图谱..."):
+                from src.pages.graph_page import build_policy_graph
+                st.session_state.full_graph = build_policy_graph()
+            st.success("图谱缓存已刷新")
+        
+        if st.session_state.full_graph:
+            st.caption(f"✅ 图谱已加载: {st.session_state.full_graph.get_node_count()} 个节点")
+        else:
+            st.caption("⚠️ 图谱未加载")
 
     with col_main:
         # 搜索栏
@@ -74,6 +94,11 @@ def show():
         if st.button("🔍 搜索", use_container_width=True):
             if st.session_state.search_query or any(st.session_state.search_filters.values()):
                 perform_search()
+                # 自动加载图谱（如果还未加载）
+                if st.session_state.full_graph is None:
+                    with st.spinner("正在加载图谱..."):
+                        from src.pages.graph_page import build_policy_graph
+                        st.session_state.full_graph = build_policy_graph()
             else:
                 st.warning("请输入搜索关键词或选择筛选条件")
 
@@ -81,11 +106,16 @@ def show():
         if st.session_state.search_results:
             render_search_stats(st.session_state.search_results)
 
-        # 显示搜索结果
+        # 显示搜索结果（传递完整图谱）
         if st.session_state.search_results:
             total_results = len(st.session_state.search_results)
             current_page = st.session_state.get("current_page", 0) + 1
-            render_search_results(st.session_state.search_results, total_results, current_page)
+            render_search_results(
+                st.session_state.search_results, 
+                total_results, 
+                current_page,
+                full_graph=st.session_state.full_graph  # 传递完整图谱
+            )
 
 
 def perform_search():

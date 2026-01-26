@@ -748,14 +748,14 @@ class RAGFlowClient:
                         return "\n\n".join(text_parts)
                         
             except ImportError:
-                logger.warning("pdfplumber未安装，尝试PyPDF2")
+                logger.warning("pdfplumber未安装，尝试pypdf")
             except Exception as e:
-                logger.warning(f"pdfplumber提取失败: {e}，尝试PyPDF2")
+                logger.warning(f"pdfplumber提取失败: {e}，尝试pypdf")
             
-            # 回退到PyPDF2
+            # 回退到pypdf
             try:
-                import PyPDF2
-                pdf_reader = PyPDF2.PdfReader(io.BytesIO(content_bytes))
+                import pypdf
+                pdf_reader = pypdf.PdfReader(io.BytesIO(content_bytes))
                 text_parts = []
                 
                 for page_num, page in enumerate(pdf_reader.pages, 1):
@@ -764,13 +764,13 @@ class RAGFlowClient:
                         text_parts.append(f"第{page_num}页:\n{page_text}")
                 
                 if text_parts:
-                    logger.info(f"PDF内容提取成功 (PyPDF2): {doc_name}, {len(text_parts)}页")
+                    logger.info(f"PDF内容提取成功 (pypdf): {doc_name}, {len(text_parts)}页")
                     return "\n\n".join(text_parts)
                     
             except ImportError:
-                logger.error("PDF处理库未安装，请安装：pip install pdfplumber PyPDF2")
+                logger.error("PDF处理库未安装，请安装：pip install pdfplumber pypdf")
             except Exception as e:
-                logger.error(f"PyPDF2提取失败: {e}")
+                logger.error(f"pypdf提取失败: {e}")
             
             # 如果都失败了，返回提示信息
             return f"⚠️ PDF文件解析失败 ({doc_name})\n\n这可能是因为：\n1. PDF文件是扫描版（图片），需要OCR识别\n2. PDF文件有密码保护\n3. PDF文件格式不兼容\n\n建议：在RAGFlow Web界面查看解析后的分块内容"
