@@ -114,31 +114,16 @@ class RAGFlowConfigSync:
     def _apply_config_to_ragflow(self, kb_name: str, config: Dict[str, Any]) -> bool:
         """应用配置到RAGFlow"""
         try:
-            # RAGFlow SDK的配置更新方法
-            # 注意：这里假设RAGFlow SDK有update_dataset方法
-            # 实际实现需要根据RAGFlow SDK的API调整
+            # 使用RAGFlowClient的configure_knowledge_base方法
+            # 该方法已经封装了知识库配置的更新逻辑
+            success = self.ragflow.configure_knowledge_base(kb_name)
             
-            # 获取知识库
-            datasets = self.ragflow.list_datasets()
-            target_dataset = None
+            if success:
+                logger.info(f"✅ 配置已应用到RAGFlow知识库: {kb_name}")
+            else:
+                logger.warning(f"⚠️ 配置应用失败: {kb_name}")
             
-            for ds in datasets:
-                if ds.get('name') == kb_name:
-                    target_dataset = ds
-                    break
-            
-            if not target_dataset:
-                logger.warning(f"RAGFlow中不存在知识库: {kb_name}")
-                return False
-            
-            # 更新配置（这里是伪代码，需要根据实际SDK调整）
-            # self.ragflow.update_dataset(kb_name, config)
-            
-            # 由于RAGFlow SDK可能不支持直接更新所有配置
-            # 我们至少可以验证配置已加载
-            logger.info(f"配置已准备: {list(config.keys())}")
-            
-            return True
+            return success
             
         except Exception as e:
             logger.error(f"应用配置到RAGFlow失败: {e}")

@@ -68,7 +68,7 @@ def setup_page_config():
         page_title=APP_NAME,
         page_icon=APP_ICON,
         layout=APP_LAYOUT,
-        initial_sidebar_state="expanded"
+        initial_sidebar_state="auto"  # 改为auto，让用户可以控制
     )
 
     # 自定义CSS
@@ -92,6 +92,19 @@ def setup_page_config():
     [data-testid="stMetricValue"] {
         font-size: 24px;
     }
+    
+    /* 侧边栏折叠按钮样式 */
+    .sidebar-collapse-btn {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        z-index: 999;
+        background-color: #f0f2f6;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 5px 10px;
+        cursor: pointer;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -108,7 +121,8 @@ def initialize_session_state():
         'voice_text': '',
         'voice_answer': '',
         'documents': [],
-        'stats': {}
+        'stats': {},
+        'sidebar_collapsed': False  # 添加侧边栏折叠状态
     }
 
     for key, value in default_states.items():
