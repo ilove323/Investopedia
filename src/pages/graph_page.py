@@ -17,6 +17,7 @@
     graph_page.show()
 """
 import streamlit as st
+import networkx as nx
 from src.components.graph_ui import (
     render_graph_controls,
     render_network_graph,
@@ -114,26 +115,27 @@ def show():
     with col_control:
         st.subheader("图谱控制")
 
-        # 图谱控制
-        render_graph_controls()
+        # 图谱控制 - 获取用户选择
+        controls = render_graph_controls()
+        st.session_state.graph_layout = controls.get('layout', '力导向')
 
         st.divider()
 
-        # 节点类型筛选
+        # 节点类型筛选 - 获取筛选配置
         st.subheader("节点筛选")
-        render_graph_filter_by_type()
+        node_filter = render_graph_filter_by_type()
 
         st.divider()
 
-        # 搜索
+        # 搜索 - 获取搜索关键词
         st.subheader("搜索")
-        render_graph_search()
+        search_query = render_graph_search()
 
         st.divider()
 
-        # 路径查询
+        # 路径查询 - 获取路径查询参数
         st.subheader("路径查询")
-        render_graph_path_finder()
+        path_params = render_graph_path_finder()
 
         st.divider()
 
@@ -150,9 +152,22 @@ def show():
 
         st.divider()
 
+        # 应用过滤和搜索
+        filtered_graph = apply_filters_and_search(
+            st.session_state.graph,
+            node_filter,
+            search_query,
+            controls.get('node_types', []),
+            controls.get('edge_types', [])
+        )
+
+        # 处理路径查询
+        if path_params.get('find_path') and path_params.get('source') and path_params.get('target'):
+            display_shortest_path(filtered_graph, path_params['source'], path_params['target'])
+
         # 主图谱显示
-        if st.session_state.graph and st.session_state.graph.get_node_count() > 0:
-            render_network_graph(st.session_state.graph.get_nx_graph())
+        if filtered_graph and filtered_graph.get_node_count() > 0:
+            render_network_graph(filtered_graph.get_nx_graph())
         else:
             st.warning("🔍 图谱为空，无法显示")
             st.info("""
@@ -160,6 +175,7 @@ def show():
             - 请先在"文档管理"页面上传政策文档
             - 等待文档处理完成后返回此页面
             - 或检查数据库连接是否正常
+            - 或调整节点类型筛选条件
             """)
 
         st.divider()
@@ -327,3 +343,123 @@ def render_edge_details_section():
 
     except Exception as e:
         st.error(f"加载关系详情失败：{str(e)}")
+
+def apply_filters_and_search(graph, node_filter, search_query, node_types, edge_types):
+    """
+    应用节点过滤和搜索
+    
+    Args:
+        graph: PolicyGraph对象
+        node_filter: 节点类型过滤字典
+        search_query: 搜索关键词
+        node_types: 控制面板选中的节点类型列表
+        edge_types: 控制面板选中的边类型列表
+    
+    Returns:
+        过滤后的PolicyGraph对象
+    """
+    if not graph or graph.get_node_count() == 0:
+        return graph
+    
+    # 创建新图谱用于过滤结果
+    filtered_graph = PolicyGraph()
+    
+    # 节点类型映射
+    type_mapping = {
+        '政策': NodeType.POLICY,
+        '机构': NodeType.AUTHORITY,
+        '地区': NodeType.REGION,
+        '概念': NodeType.CONCEPT,
+        '项目': NodeType.PROJECT
+    }
+    
+    # 获取允许的节点类型
+    allowed_types = set()
+    for type_name in node_types:
+        if type_name in type_mapping:
+            allowed_types.add(type_mapping[type_name])
+    
+    # 如果没有选择任何类型，显示所有类型
+    if not allowed_types:
+        allowed_types = set(type_mapping.values())
+    
+    # 过滤节点
+    for node in graph.nodes.values():
+        # 类型过滤
+        if node.node_type not in allowed_types:
+            continue
+        
+        # 搜索过滤
+        if search_query:
+            query_lower = search_query.lower()
+            if (query_lower not in node.label.lower() and 
+                query_lower not in node.node_id.lower()):
+                continue
+        
+        # 添加符合条件的节点
+        filtered_graph.add_node(node)
+    
+    # 添加边（只添加两端节点都存在的边）
+    for edge in graph.edges:
+        if (edge.source_id in filtered_graph.nodes and 
+            edge.target_id in filtered_graph.nodes):
+            filtered_graph.add_edge(edge)
+    
+    return filtered_graph
+
+
+def display_shortest_path(graph, source_id, target_id):
+    """
+    显示两个节点之间的最短路径
+    
+    Args:
+        graph: PolicyGraph对象
+        source_id: 源节点ID
+        target_id: 目标节点ID
+    """
+    if not graph or graph.get_node_count() == 0:
+        st.warning("图谱为空，无法查询路径")
+        return
+    
+    try:
+        nx_graph = graph.get_nx_graph()
+        
+        # 查找路径
+        if nx.has_path(nx_graph, source_id, target_id):
+            path = nx.shortest_path(nx_graph, source_id, target_id)
+            
+            st.success(f"✅ 找到路径！长度: {len(path) - 1}")
+            
+            # 显示路径
+            st.write("**路径:**")
+            for i, node_id in enumerate(path):
+                node = graph.get_node(node_id)
+                if node:
+                    st.write(f"{i + 1}. {node.label} ({node.node_type.value})")
+                else:
+                    st.write(f"{i + 1}. {node_id}")
+            
+            # 高亮显示路径图
+            path_graph = PolicyGraph()
+            for node_id in path:
+                node = graph.get_node(node_id)
+                if node:
+                    path_graph.add_node(node)
+            
+            for i in range(len(path) - 1):
+                for edge in graph.edges:
+                    if ((edge.source_id == path[i] and edge.target_id == path[i + 1]) or
+                        (edge.source_id == path[i + 1] and edge.target_id == path[i])):
+                        path_graph.add_edge(edge)
+                        break
+            
+            st.subheader("路径图谱")
+            render_network_graph(path_graph.get_nx_graph(), title="最短路径")
+            
+        else:
+            st.warning(f"❌ 未找到从 {source_id} 到 {target_id} 的路径")
+            
+    except nx.NodeNotFound as e:
+        st.error(f"节点不存在: {str(e)}")
+    except Exception as e:
+        st.error(f"路径查询失败: {str(e)}")
