@@ -30,8 +30,13 @@ from src.components.graph_ui import (
     render_graph_path_finder
 )
 from src.database.policy_dao import PolicyDAO
+from src.database.graph_dao import GraphDAO
 from src.models.graph import PolicyGraph, NodeType, RelationType, GraphNode, GraphEdge
 from src.services.data_sync import DataSyncService
+from src.config import get_config
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def show():
@@ -46,8 +51,38 @@ def show():
         policies_count = len(dao.get_policies())
         st.info(f"📋 本地数据库: {policies_count} 个政策")
         
-        # 同步按钮
-        if st.button("🔄 同步RAGFlow数据", help="将RAGFlow中的文档同步到本地数据库"):
+        # 图谱统计
+        try:
+            config = get_config()
+            db_path = config.data_dir / "database" / "policies.db"
+            graph_dao = GraphDAO(str(db_path))
+            graph_stats = graph_dao.get_stats()
+            if graph_stats and graph_stats.get('node_count', 0) > 0:
+                st.success(f"""
+🕸️ **图谱信息**
+- 节点数: {graph_stats.get('node_count', 0)}
+- 边数: {graph_stats.get('edge_count', 0)}
+- 最后更新: {graph_stats.get('last_updated', 'N/A')}
+                """)
+            else:
+                st.warning("⚠️ 尚未构建图谱")
+        except Exception as e:
+            st.error(f"获取图谱统计失败: {e}")
+        
+        st.divider()
+        
+        st.info("""
+💡 **如何构建图谱**
+
+点击侧边栏切换到 **📚 文档管理** 页面，在文档列表下方有构建按钮：
+- 🔄 **全量重建图谱** - 重新分析所有文档构建图谱
+- ➕ **增量更新图谱** - 仅分析新增文档更新图谱
+
+图谱由本项目自动从RAGFlow文档中提取实体和关系构建。
+        """)
+        
+        # 同步按钮（只同步文档到数据库，不构建图谱）
+        if st.button("🔄 同步RAGFlow数据", help="将RAGFlow中的文档同步到本地数据库（不构建图谱）"):
             with st.spinner("正在同步数据..."):
                 try:
                     sync_service = DataSyncService()
@@ -59,16 +94,14 @@ def show():
                     - 新增政策: {sync_results['new_policies']}个
                     - 更新政策: {sync_results['updated_policies']}个
                     - 总文档数: {sync_results['total_documents']}个
+                    
+                    ⚠️ 注意：需要在文档页面手动构建图谱
                     """)
                     
                     if sync_results['errors']:
                         with st.expander("⚠️ 同步错误", expanded=False):
                             for error in sync_results['errors']:
                                 st.error(error)
-                    
-                    # 清空图谱缓存，强制重新构建
-                    st.session_state.graph = None
-                    st.rerun()
                     
                 except Exception as e:
                     st.error(f"同步失败: {str(e)}")
@@ -104,10 +137,10 @@ def show():
     if "graph_layout" not in st.session_state:
         st.session_state.graph_layout = "force"
 
-    # 构建图谱
+    # 从数据库加载图谱
     if st.session_state.graph is None:
-        with st.spinner("正在加载知识图谱..."):
-            st.session_state.graph = build_policy_graph()
+        with st.spinner("正在从数据库加载知识图谱..."):
+            st.session_state.graph = load_graph_from_database()
 
     # 分栏：控制面板 + 主视图
     col_control, col_main = st.columns([1, 4])
@@ -169,13 +202,19 @@ def show():
         if filtered_graph and filtered_graph.get_node_count() > 0:
             render_network_graph(filtered_graph.get_nx_graph())
         else:
-            st.warning("🔍 图谱为空，无法显示")
+            st.warning("🔍 图谱为空或尚未构建")
             st.info("""
-            💡 **提示**：
-            - 请先在"文档管理"页面上传政策文档
-            - 等待文档处理完成后返回此页面
-            - 或检查数据库连接是否正常
-            - 或调整节点类型筛选条件
+            💡 **如何构建知识图谱**：
+            
+            1. 点击左侧边栏切换到 **📚 文档管理** 页面
+            2. 确保已上传政策文档到RAGFlow（文档列表会显示）
+            3. 在文档统计下方找到 **🕸️ 知识图谱构建** 区域
+            4. 点击按钮：
+               - 🔄 **全量重建图谱** - 重新分析所有文档
+               - ➕ **增量更新图谱** - 仅分析新增文档
+            5. 等待进度条完成后返回本页面查看
+            
+            ⚠️ **说明**：图谱由本项目自动构建，无需去RAGFlow操作
             """)
 
         st.divider()
@@ -192,121 +231,78 @@ def show():
         render_edge_details_section()
 
 
-def build_policy_graph():
-    """构建政策知识图谱"""
+def load_graph_from_database():
+    """从数据库加载知识图谱"""
     try:
-        dao = PolicyDAO()
-        policies = dao.get_policies()
-
-        # 检查是否有数据
-        if not policies:
-            st.warning("📝 数据库中没有政策数据")
-            st.info("""
-            请先添加政策数据：
-            1. 访问"文档管理"页面
-            2. 上传政策文档
-            3. 等待处理完成
-            4. 返回图谱页面查看
-            """)
+        config = get_config()
+        db_path = config.data_dir / "database" / "policies.db"
+        graph_dao = GraphDAO(str(db_path))
+        graph_data = graph_dao.load_graph()
+        
+        if not graph_data:
+            logger.info("数据库中没有图谱数据")
             return PolicyGraph()
-
-        # 创建图谱
+        
+        # 将graph_data转换为PolicyGraph对象
         graph = PolicyGraph()
         
-        # 记录添加的节点数
-        added_nodes = 0
-        added_edges = 0
-
-        # 添加政策节点
-        for policy in policies:
-            node = GraphNode(
-                node_id=f"policy_{policy['id']}",
-                label=policy.get('title', '无标题'),
-                node_type=NodeType.POLICY,
-                attributes={
-                    'document_id': str(policy['id']),  # 用于混合检索关联RAGFlow文档
-                    "policy_type": policy.get('policy_type'),
-                    "region": policy.get('region'),
-                    "status": policy.get('status')
-                }
-            )
-            if graph.add_node(node):
-                added_nodes += 1
-
-        # 添加发行机关节点
-        authorities = set()
-        for policy in policies:
-            if policy.get('issuing_authority'):
-                authorities.add(policy['issuing_authority'])
-
-        for authority in authorities:
-            node = GraphNode(
-                node_id=f"authority_{authority}",
-                label=authority,
-                node_type=NodeType.AUTHORITY
-            )
-            if graph.add_node(node):
-                added_nodes += 1
-
-            # 连接政策到发行机关
-            for policy in policies:
-                if policy.get('issuing_authority') == authority:
-                    edge = GraphEdge(
-                        source_id=f"policy_{policy['id']}",
-                        target_id=f"authority_{authority}",
-                        relation_type=RelationType.ISSUED_BY,
-                        label="由...发布"
-                    )
-                    if graph.add_edge(edge):
-                        added_edges += 1
-        # 添加地区节点
-        regions = set()
-        for policy in policies:
-            if policy.get('region'):
-                regions.add(policy['region'])
-
-        for region in regions:
-            node = GraphNode(
-                node_id=f"region_{region}",
-                label=region,
-                node_type=NodeType.REGION
-            )
-            if graph.add_node(node):
-                added_nodes += 1
-
-            # 连接政策到地区
-            for policy in policies:
-                if policy.get('region') == region:
-                    edge = GraphEdge(
-                        source_id=f"policy_{policy['id']}",
-                        target_id=f"region_{region}",
-                        relation_type=RelationType.APPLIES_TO,
-                        label="适用于"
-                    )
-                    if graph.add_edge(edge):
-                        added_edges += 1
-
-        # 添加政策间关系
-        for policy in policies:
-            relations = dao.get_policy_relations(policy['id'], as_source=True)
-            for relation in relations:
-                edge = GraphEdge(
-                    source_id=f"policy_{policy['id']}",
-                    target_id=f"policy_{relation.get('target_policy_id')}",
-                    relation_type=relation.get('relation_type'),
-                    label=relation.get('relation_type'),
-                    attributes={"confidence": relation.get('confidence')}
+        # 添加节点
+        nodes = graph_data.get('nodes', [])
+        for node_data in nodes:
+            try:
+                # 将字符串类型转换为NodeType枚举
+                node_type_str = node_data.get('type', 'POLICY')
+                try:
+                    node_type = NodeType[node_type_str.upper()]
+                except (KeyError, AttributeError):
+                    node_type = NodeType.POLICY
+                
+                node = GraphNode(
+                    node_id=node_data.get('id'),
+                    label=node_data.get('label', ''),
+                    node_type=node_type,
+                    attributes=node_data.get('attributes', {})
                 )
+                graph.add_node(node)
+            except Exception as e:
+                logger.warning(f"添加节点失败 {node_data.get('id')}: {e}")
+        
+        # 添加边
+        edges = graph_data.get('edges', [])
+        print(f"\n[DEBUG] 加载 {len(edges)} 条边到前端图谱")
+        added_edges = 0
+        for edge_data in edges:
+            try:
+                # 尝试从type字段或relation字段获取关系类型
+                relation_type_str = edge_data.get('type') or edge_data.get('relation', 'RELATED_TO')
+                
+                # 尝试将关系类型转换为枚举
+                try:
+                    relation_type = RelationType[relation_type_str.upper().replace(' ', '_')]
+                except (KeyError, AttributeError, ValueError):
+                    # 如果不是标准的RelationType，使用RELATES_TO
+                    relation_type = RelationType.RELATES_TO
+                
+                edge = GraphEdge(
+                    source_id=edge_data.get('from'),
+                    target_id=edge_data.get('to'),
+                    relation_type=relation_type,
+                    label=edge_data.get('label', ''),
+                    attributes=edge_data.get('attributes', {})
+                )
+                
                 if graph.add_edge(edge):
                     added_edges += 1
-
-        # 记录构建结果
-        st.success(f"🎯 图谱构建完成: 添加了 {added_nodes} 个节点, {added_edges} 条边")
+            except Exception as e:
+                logger.warning(f"添加边失败 {edge_data.get('from')}->{edge_data.get('to')}: {e}")
         
+        print(f"[DEBUG] 成功添加 {added_edges}/{len(edges)} 条边")
+        
+        logger.info(f"从数据库加载图谱: {graph.get_node_count()}个节点, {len(edges)}条边")
         return graph
-
+        
     except Exception as e:
-        st.error(f"构建图谱失败：{str(e)}")
+        logger.error(f"从数据库加载图谱失败: {e}")
         return PolicyGraph()
 
 

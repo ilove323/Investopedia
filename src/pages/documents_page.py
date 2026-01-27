@@ -22,6 +22,7 @@ RAGFlow文档查看器页面
 import streamlit as st
 from typing import List, Dict, Any, Optional
 from src.services.ragflow_client import get_ragflow_client
+from src.services.data_sync import DataSyncService
 from src.config import get_config
 import logging
 
@@ -183,6 +184,20 @@ def render_documents_list(ragflow_client, kb_name: str):
         col3.metric("⏳ 处理中", processing_docs)
         col4.metric("🧩 总分块数", total_chunks)
 
+        st.divider()
+
+        # 图谱同步区域
+        st.markdown("### 🕸️ 知识图谱构建")
+        col_full, col_incremental = st.columns(2)
+        
+        with col_full:
+            if st.button("🔄 全量重建图谱", use_container_width=True, help="重新分析所有文档并构建完整知识图谱"):
+                build_graph(kb_name, is_incremental=False)
+        
+        with col_incremental:
+            if st.button("➕ 增量更新图谱", use_container_width=True, help="仅分析新增或更新的文档，合并到现有图谱"):
+                build_graph(kb_name, is_incremental=True)
+        
         st.divider()
 
         # 文档列表
@@ -783,6 +798,65 @@ def render_document_content(ragflow_client):
     if st.button("⬅️ 返回文档列表"):
         st.session_state.selected_doc = None
         st.rerun()
+
+
+def build_graph(kb_name: str, is_incremental: bool):
+    """
+    构建知识图谱
+    
+    Args:
+        kb_name: 知识库名称
+        is_incremental: 是否增量更新
+    """
+    try:
+        # 创建进度容器
+        progress_container = st.empty()
+        status_container = st.empty()
+        
+        # 初始化DataSyncService
+        data_sync = DataSyncService()
+        
+        # 进度回调函数
+        def progress_callback(step: int, total: int, message: str):
+            progress = step / total
+            progress_container.progress(progress, text=f"进度: {step}/{total} - {message}")
+            status_container.info(f"📝 {message}")
+        
+        # 构建图谱
+        mode = "增量" if is_incremental else "全量"
+        status_container.info(f"🚀 开始{mode}构建知识图谱...")
+        
+        result = data_sync.build_knowledge_graph(
+            kb_name=kb_name,
+            is_incremental=is_incremental,
+            progress_callback=progress_callback
+        )
+        
+        # 清除进度显示
+        progress_container.empty()
+        status_container.empty()
+        
+        # 显示结果
+        if result.get('success'):
+            st.success(f"""
+✅ **{mode}图谱构建成功！**
+
+📊 图谱统计：
+- 🔵 节点数: {result.get('node_count', 0)}
+- 🔗 边数: {result.get('edge_count', 0)}
+- 📄 处理文档数: {result.get('doc_count', 0)}
+- ⏱️ 耗时: {result.get('elapsed_time', 'N/A')}
+
+💡 您可以前往"知识图谱"页面查看可视化结果
+            """)
+        else:
+            error_msg = result.get('error', '未知错误')
+            st.error(f"❌ {mode}图谱构建失败: {error_msg}")
+            logger.error(f"图谱构建失败: {error_msg}")
+            
+    except Exception as e:
+        st.error(f"❌ 图谱构建异常: {str(e)}")
+        logger.error(f"图谱构建异常: {e}", exc_info=True)
 
 
 def format_file_size(size_bytes: int) -> str:

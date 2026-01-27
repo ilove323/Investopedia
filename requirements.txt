@@ -40,6 +40,9 @@ python-dotenv>=1.0.1
 # RAGFlow SDK
 ragflow-sdk>=0.13.0
 
+# 阿里云Qwen大模型
+dashscope>=1.14.0
+
 # 数据验证
 pydantic>=2.10.0
 

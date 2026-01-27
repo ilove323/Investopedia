@@ -8,6 +8,7 @@
 - 自动元数据提取和标签生成
 - 增量同步（更新已存在的记录）
 - 同步状态和错误报告
+- 知识图谱构建和存储
 
 使用示例：
     from src.services.data_sync import DataSyncService
@@ -17,10 +18,12 @@
     print(f"同步完成: 新增{results['new_policies']}个")
 """
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from src.services.ragflow_client import RAGFlowClient
+from src.services.qwen_client import get_qwen_client
 from src.database.policy_dao import PolicyDAO
+from src.database.graph_dao import GraphDAO
 from src.business.metadata_extractor import MetadataExtractor
 from src.business.tag_generator import TagGenerator
 from src.utils.logger import get_logger
@@ -36,12 +39,34 @@ class DataSyncService:
         try:
             self.ragflow = RAGFlowClient()
             self.dao = PolicyDAO()
+            self.graph_dao = None  # 延迟初始化
+            self.qwen = None  # 延迟初始化
             self.metadata_extractor = MetadataExtractor()
             self.tag_generator = TagGenerator()
             logger.info("数据同步服务初始化完成")
         except Exception as e:
             logger.error(f"数据同步服务初始化失败: {e}")
             raise
+    
+    def _init_qwen_client(self):
+        """延迟初始化Qwen客户端"""
+        if self.qwen is None:
+            try:
+                self.qwen = get_qwen_client()
+                logger.info("Qwen客户端初始化成功")
+            except Exception as e:
+                logger.error(f"Qwen客户端初始化失败: {e}")
+                raise
+        return self.qwen
+    
+    def _init_graph_dao(self):
+        """延迟初始化GraphDAO"""
+        if self.graph_dao is None:
+            from src.config import get_config
+            config = get_config()
+            db_path = config.data_dir / "database" / "policies.db"
+            self.graph_dao = GraphDAO(str(db_path))
+        return self.graph_dao
     
     def sync_documents_to_database(self, kb_name: str = "policy_demo_kb") -> Dict[str, Any]:
         """
@@ -253,6 +278,329 @@ class DataSyncService:
                 "error": str(e),
                 "last_check": datetime.now().isoformat()
             }
+    
+    def build_knowledge_graph(self, kb_name: str = "policy_demo_kb", 
+                             is_incremental: bool = False,
+                             progress_callback=None) -> Dict[str, Any]:
+        """
+        从RAGFlow构建知识图谱并存储到数据库
+        
+        Args:
+            kb_name: 知识库名称
+            is_incremental: 是否增量更新（True=增量，False=全量重建）
+            progress_callback: 进度回调函数，接收(current, total, message)
+            
+        Returns:
+            构建结果字典
+        """
+        import time
+        start_time = time.time()
+        
+        try:
+            logger.info(f"开始构建知识图谱 (增量={is_incremental})")
+            
+            # 初始化GraphDAO
+            graph_dao = self._init_graph_dao()
+            
+            # 步骤1: 获取所有文档
+            if progress_callback:
+                progress_callback(1, 5, "正在获取文档列表...")
+            
+            documents = self.ragflow.get_documents(kb_name)
+            if not documents:
+                logger.warning("没有找到文档，无法构建图谱")
+                return {
+                    'success': False,
+                    'error': '知识库中没有文档',
+                    'node_count': 0,
+                    'edge_count': 0,
+                    'doc_count': 0,
+                    'elapsed_time': f"{time.time() - start_time:.2f}秒"
+                }
+            
+            # 步骤2: 使用Qwen提取实体和关系
+            if progress_callback:
+                progress_callback(2, 5, f"正在使用Qwen分析 {len(documents)} 个文档...")
+            
+            # 初始化Qwen客户端
+            qwen = self._init_qwen_client()
+            
+            all_nodes = []
+            all_edges = []
+            processed_docs = 0
+            seen_doc_names = set()  # 用于去重文档
+            seen_node_ids = set()  # 用于去重节点ID
+            
+            # 从每个文档提取实体和关系
+            for idx, doc in enumerate(documents):
+                try:
+                    doc_name = doc.get('name', '').replace('.pdf', '').replace('.docx', '').strip()
+                    
+                    # 跳过重复文档
+                    if doc_name in seen_doc_names:
+                        logger.info(f"跳过重复文档: {doc_name}")
+                        continue
+                    
+                    seen_doc_names.add(doc_name)
+                    
+                    if progress_callback:
+                        progress_callback(2, 5, f"分析文档 {idx+1}/{len(documents)}: {doc_name[:30]}...")
+                    
+                    # 获取文档内容
+                    doc_content = self.ragflow.get_document_content(doc.get('id'), kb_name)
+                    
+                    if doc_content and len(doc_content) > 50:
+                        # 使用Qwen提取实体和关系
+                        doc_nodes, doc_edges = self._extract_entities_and_relations(
+                            doc_content, 
+                            doc_name
+                        )
+                        
+                        # 去重节点（基于ID）
+                        for node in doc_nodes:
+                            node_id = node.get('id')
+                            if node_id and node_id not in seen_node_ids:
+                                seen_node_ids.add(node_id)
+                                all_nodes.append(node)
+                        
+                        all_edges.extend(doc_edges)
+                        processed_docs += 1
+                    
+                except Exception as e:
+                    logger.warning(f"处理文档失败 {doc.get('name', '')}: {e}")
+                    continue
+            
+            # 步骤3: 构建图谱数据结构
+            if progress_callback:
+                progress_callback(3, 5, "正在构建图谱结构...")
+            
+            graph_data = {
+                'nodes': all_nodes,
+                'edges': all_edges
+            }
+            
+            # 步骤4: 存储到数据库
+            if progress_callback:
+                progress_callback(4, 5, "正在保存到数据库...")
+            
+            graph_dao.save_graph(graph_data, is_incremental=is_incremental)
+            
+            # 步骤5: 完成
+            elapsed = time.time() - start_time
+            if progress_callback:
+                progress_callback(5, 5, "图谱构建完成!")
+            
+            result = {
+                'success': True,
+                'node_count': len(all_nodes),
+                'edge_count': len(all_edges),
+                'doc_count': processed_docs,
+                'is_incremental': is_incremental,
+                'elapsed_time': f"{elapsed:.2f}秒",
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            logger.info(f"图谱构建成功: {result['node_count']}个节点, {result['edge_count']}条边, 耗时{result['elapsed_time']}")
+            return result
+            
+        except Exception as e:
+            elapsed = time.time() - start_time
+            logger.error(f"图谱构建失败: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'node_count': 0,
+                'edge_count': 0,
+                'doc_count': 0,
+                'elapsed_time': f"{elapsed:.2f}秒"
+            }
+    
+    def _extract_entities_and_relations(self, text: str, doc_title: str) -> Tuple[List[Dict], List[Dict]]:
+        """
+        使用Qwen大模型提取实体和关系
+        
+        Args:
+            text: 文档文本内容
+            doc_title: 文档标题
+            
+        Returns:
+            (nodes, edges) 节点列表和边列表
+        """
+        logger.info(f"使用Qwen提取实体: {doc_title}")
+        
+        # 调用Qwen进行抽取
+        result = self.qwen.extract_entities_and_relations(text, doc_title)
+        
+        entities_data = result.get('entities', [])
+        relations_data = result.get('relations', [])
+        
+        print(f"\n[DEBUG] 文档: {doc_title}")
+        print(f"[DEBUG] Qwen返回: {len(entities_data)}个实体, {len(relations_data)}个关系")
+        if entities_data:
+            print(f"[DEBUG] 前5个实体: {[e.get('text') for e in entities_data[:5]]}")
+        if relations_data:
+            print(f"[DEBUG] 前5个关系:")
+            for i, r in enumerate(relations_data[:5], 1):
+                print(f"  {i}. {r.get('source')} -> {r.get('target')} ({r.get('type')})")
+        
+        # 构建节点
+        nodes = []
+        entity_map = {}  # {entity_text: node_id}
+        
+        # 首先添加文档节点（去掉.pdf等后缀）
+        clean_doc_title = doc_title.replace('.pdf', '').replace('.docx', '').strip()
+        doc_node_id = f"doc_{hash(clean_doc_title) % 100000}"
+        nodes.append({
+            'id': doc_node_id,
+            'label': clean_doc_title,
+            'type': 'document',
+            'title': f'📄 文档: {clean_doc_title}',
+            'size': 30,
+            'color': '#FF6B6B'
+        })
+        entity_map[clean_doc_title] = doc_node_id
+        
+        # 添加提取的实体节点
+        for idx, entity in enumerate(entities_data):
+            entity_text = entity.get('text', '').strip()
+            entity_type = entity.get('type', 'unknown')
+            description = entity.get('description', '')
+            
+            if not entity_text or len(entity_text) < 2:
+                continue
+            
+            # 避免重复
+            if entity_text in entity_map:
+                continue
+            
+            node_id = f"entity_{hash(doc_title + entity_text) % 100000}"
+            entity_map[entity_text] = node_id
+            
+            nodes.append({
+                'id': node_id,
+                'label': entity_text,
+                'type': entity_type,
+                'title': f'{self._get_entity_icon(entity_type)} {entity_type}: {entity_text}\n{description}',
+                'size': self._get_entity_size(entity_type),
+                'color': self._get_entity_color(entity_type)
+            })
+        
+        # 构建边
+        edges = []
+        
+        # 文档与所有实体的"包含"关系
+        for entity_text, node_id in entity_map.items():
+            if node_id != doc_node_id:  # 排除文档自己
+                edges.append({
+                    'from': doc_node_id,
+                    'to': node_id,
+                    'type': '包含',
+                    'label': '包含',
+                    'arrows': 'to',
+                    'color': {'color': '#CCCCCC', 'opacity': 0.5}
+                })
+        
+        print(f"\n[DEBUG] entity_map包含 {len(entity_map)} 个实体")
+        print(f"[DEBUG] entity_map所有键: {list(entity_map.keys())}")
+        
+        # 实体间的关系
+        matched_relations = 0
+        for relation in relations_data:
+            source_text = relation.get('source', '').strip()
+            target_text = relation.get('target', '').strip()
+            relation_type = relation.get('type', 'related')
+            
+            source_id = entity_map.get(source_text)
+            target_id = entity_map.get(target_text)
+            
+            if not source_id:
+                print(f"[WARN] 关系源实体未找到: '{source_text}'")
+                continue
+            
+            if not target_id:
+                print(f"[WARN] 关系目标实体未找到: '{target_text}'")
+                continue
+            
+            if source_id and target_id and source_id != target_id:
+                edges.append({
+                    'from': source_id,
+                    'to': target_id,
+                    'type': relation_type,
+                    'label': relation_type,
+                    'arrows': 'to',
+                    'color': {'color': self._get_relation_color(relation_type)}
+                })
+                matched_relations += 1
+        
+        print(f"\n[DEBUG] 成功匹配 {matched_relations}/{len(relations_data)} 个关系")
+        print(f"[DEBUG] 最终: {len(nodes)}个节点, {len(edges)}条边")
+        
+        logger.info(f"实体抽取完成: {len(nodes)}个节点, {len(edges)}条边 (包含文档关系)")
+        logger.info(f"  - 实体节点: {len(nodes)-1}")
+        logger.info(f"  - 文档-实体关系: {len([e for e in edges if e['type']=='包含'])}")
+        logger.info(f"  - 实体间关系: {len([e for e in edges if e['type']!='包含'])}")
+        
+        return nodes, edges
+    
+    def _get_entity_icon(self, entity_type: str) -> str:
+        """根据实体类型返回emoji图标"""
+        icon_map = {
+            'document': '📄',
+            '政策名称': '📋',
+            '法律法规': '⚖️',
+            '发文机关': '🏛️',
+            '地区': '🌍',
+            '领域': '🎯',
+            '文号': '🔖',
+            '时间': '📅',
+            '关键概念': '💡',
+        }
+        return icon_map.get(entity_type, '🔹')
+    
+    def _get_entity_size(self, entity_type: str) -> int:
+        """根据实体类型返回节点大小"""
+        size_map = {
+            'document': 30,
+            '政策名称': 25,
+            '法律法规': 25,
+            '发文机关': 20,
+            '地区': 18,
+            '领域': 18,
+            '文号': 15,
+            '时间': 12,
+            '关键概念': 15,
+        }
+        return size_map.get(entity_type, 15)
+    
+    def _get_entity_color(self, entity_type: str) -> str:
+        """根据实体类型返回节点颜色"""
+        color_map = {
+            'document': '#FF6B6B',
+            '政策名称': '#4ECDC4',
+            '法律法规': '#45B7D1',
+            '发文机关': '#FFA07A',
+            '地区': '#F7DC6F',
+            '领域': '#BB8FCE',
+            '文号': '#98D8C8',
+            '时间': '#85C1E2',
+            '关键概念': '#52BE80',
+        }
+        return color_map.get(entity_type, '#95A5A6')
+    
+    def _get_relation_color(self, relation_type: str) -> str:
+        """根据关系类型返回边颜色"""
+        color_map = {
+            '发布': '#FF6B6B',
+            '依据': '#4ECDC4',
+            '适用于': '#F7DC6F',
+            '涉及': '#BB8FCE',
+            '修订': '#FFA07A',
+            '废止': '#E74C3C',
+            '引用': '#98D8C8',
+            '实施时间': '#85C1E2',
+            '包含': '#CCCCCC',
+        }
+        return color_map.get(relation_type, '#95A5A6')
 
 
 def get_data_sync_service() -> DataSyncService:

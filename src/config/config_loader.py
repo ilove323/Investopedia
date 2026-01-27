@@ -582,6 +582,32 @@ class ConfigLoader:
     def ragflow_retry_delay(self) -> int:
         return self.get_int("RAGFLOW", "retry_delay", 1)
     
+    # ===== QWEN配置 =====
+    @property
+    def qwen_api_key(self) -> str:
+        """Qwen API密钥"""
+        return self.get('QWEN', 'api_key', '')
+    
+    @property
+    def qwen_model(self) -> str:
+        """Qwen模型名称"""
+        return self.get('QWEN', 'model', 'qwen-plus')
+    
+    @property
+    def qwen_temperature(self) -> float:
+        """Qwen温度参数"""
+        return self.get_float('QWEN', 'temperature', 0.1)
+    
+    @property
+    def qwen_max_tokens(self) -> int:
+        """Qwen最大token数"""
+        return self.get_int('QWEN', 'max_tokens', 2000)
+    
+    @property
+    def qwen_prompt_file(self) -> str:
+        """Qwen提示词文件路径"""
+        return self.get('QWEN', 'prompt_file', 'config/prompts/entity_extraction.txt')
+    
     # ==================== 兼容性方法 ====================
     
     @property

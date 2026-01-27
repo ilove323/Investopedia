@@ -219,3 +219,33 @@ log_format = %(asctime)s - %(name)s - %(levelname)s - %(message)s
 # 日志轮转配置
 rotating_max_bytes = 10485760  # 10MB
 rotating_backup_count = 5
+
+# =====================================================
+[QWEN]
+# 阿里云通义千问大模型配置
+# API密钥获取地址: https://dashscope.console.aliyun.com/
+
+# API密钥（必填）
+api_key = your-dashscope-api-key-here
+
+# 模型选择
+# qwen-turbo: 快速响应，适合简单任务
+# qwen-plus: 平衡性能，推荐使用
+# qwen-max: 最强性能，复杂任务
+model = qwen-plus
+
+# 生成参数
+temperature = 0.1  # 温度参数 (0-1)，越低越确定
+max_tokens = 2000  # 最大生成token数
+top_p = 0.9  # 核采样参数
+
+# 提示词配置
+prompt_file = config/prompts/entity_extraction.txt
+
+# API配置
+timeout = 60  # 请求超时时间（秒）
+retry_times = 3  # 重试次数
+retry_delay = 2  # 重试延迟（秒）
+
+# 日志级别
+log_level = INFO

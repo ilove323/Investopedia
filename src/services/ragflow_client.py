@@ -482,9 +482,9 @@ class RAGFlowClient:
                     'status': getattr(doc, 'status', ''),
                     'create_time': getattr(doc, 'create_time', ''),
                     'update_time': getattr(doc, 'update_time', ''),
-                    # 分块和token信息
-                    'chunk_num': getattr(doc, 'chunk_num', 0),
-                    'token_num': getattr(doc, 'token_num', 0),
+                    # 分块和token信息 - 使用正确的属性名
+                    'chunk_num': getattr(doc, 'chunk_count', 0),  # SDK用chunk_count
+                    'token_num': getattr(doc, 'token_count', 0),  # SDK用token_count
                     # 解析器信息
                     'parser_id': getattr(doc, 'parser_id', ''),
                     'parser_config': getattr(doc, 'parser_config', {}),
