@@ -59,7 +59,7 @@ def render_single_analysis():
         selected_policy = st.selectbox(
             "选择要分析的政策",
             options=policies,
-            format_func=lambda p: f"{p.metadata.title} ({p.policy_type})"
+            format_func=lambda p: f"{p.get('metadata', {}).get('title', '未知政策')} ({p.get('policy_type', '未知类型')})"
         )
 
         if selected_policy:
@@ -170,7 +170,7 @@ def render_policy_comparison():
             policy1 = st.selectbox(
                 "政策 1",
                 options=policies,
-                format_func=lambda p: p.metadata.title,
+                format_func=lambda p: p.get('metadata', {}).get('title', '未知政策'),
                 key="compare_policy1"
             )
 
@@ -178,7 +178,7 @@ def render_policy_comparison():
             policy2 = st.selectbox(
                 "政策 2",
                 options=policies,
-                format_func=lambda p: p.metadata.title,
+                format_func=lambda p: p.get('metadata', {}).get('title', '未知政策'),
                 key="compare_policy2"
             )
 
@@ -201,26 +201,26 @@ def render_policy_comparison():
                     "状态"
                 ],
                 "政策 1": [
-                    policy1.metadata.title,
-                    policy1.metadata.document_number,
-                    policy1.metadata.issuing_authority,
-                    policy1.metadata.publish_date,
-                    policy1.metadata.effective_date,
-                    policy1.metadata.expiration_date,
-                    policy1.policy_type,
-                    policy1.metadata.region,
-                    policy1.status
+                    policy1.get('metadata', {}).get('title', ''),
+                    policy1.get('metadata', {}).get('document_number', ''),
+                    policy1.get('metadata', {}).get('issuing_authority', ''),
+                    policy1.get('metadata', {}).get('publish_date', ''),
+                    policy1.get('metadata', {}).get('effective_date', ''),
+                    policy1.get('metadata', {}).get('expiration_date', ''),
+                    policy1.get('policy_type', ''),
+                    policy1.get('metadata', {}).get('region', ''),
+                    policy1.get('status', '')
                 ],
                 "政策 2": [
-                    policy2.metadata.title,
-                    policy2.metadata.document_number,
-                    policy2.metadata.issuing_authority,
-                    policy2.metadata.publish_date,
-                    policy2.metadata.effective_date,
-                    policy2.metadata.expiration_date,
-                    policy2.policy_type,
-                    policy2.metadata.region,
-                    policy2.status
+                    policy2.get('metadata', {}).get('title', ''),
+                    policy2.get('metadata', {}).get('document_number', ''),
+                    policy2.get('metadata', {}).get('issuing_authority', ''),
+                    policy2.get('metadata', {}).get('publish_date', ''),
+                    policy2.get('metadata', {}).get('effective_date', ''),
+                    policy2.get('metadata', {}).get('expiration_date', ''),
+                    policy2.get('policy_type', ''),
+                    policy2.get('metadata', {}).get('region', ''),
+                    policy2.get('status', '')
                 ]
             }
 
@@ -239,7 +239,7 @@ def render_policy_comparison():
             col_impact1, col_impact2 = st.columns(2)
 
             with col_impact1:
-                st.write(f"### {policy1.metadata.title}")
+                st.write(f"### {policy1.get('metadata', {}).get('title', '政策1')}")
                 st.metric("影响范围", impact1.get("scope", "未知"))
                 st.metric("影响强度", impact1.get("intensity", "未知"))
                 st.write("**关键影响**")
@@ -247,7 +247,7 @@ def render_policy_comparison():
                     st.write(f"- {impact}")
 
             with col_impact2:
-                st.write(f"### {policy2.metadata.title}")
+                st.write(f"### {policy2.get('metadata', {}).get('title', '政策2')}")
                 st.metric("影响范围", impact2.get("scope", "未知"))
                 st.metric("影响强度", impact2.get("intensity", "未知"))
                 st.write("**关键影响**")

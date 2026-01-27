@@ -224,6 +224,7 @@ def build_policy_graph():
                 label=policy.get('title', '无标题'),
                 node_type=NodeType.POLICY,
                 attributes={
+                    'document_id': str(policy['id']),  # 用于混合检索关联RAGFlow文档
                     "policy_type": policy.get('policy_type'),
                     "region": policy.get('region'),
                     "status": policy.get('status')

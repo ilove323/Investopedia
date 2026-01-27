@@ -1,0 +1,48 @@
+[1m============================= test session starts ==============================[0m
+platform darwin -- Python 3.14.2, pytest-9.0.2, pluggy-1.6.0 -- /Users/laurant/Documents/github/Investopedia/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/laurant/Documents/github/Investopedia
+plugins: cov-7.0.0
+[1mcollecting ... [0mcollected 33 items
+
+tests/test_services/test_hybrid_retriever.py::TestHybridRetriever::test_initialize_graph [32mPASSED[0m[33m [  3%][0m
+tests/test_services/test_hybrid_retriever.py::TestHybridRetriever::test_extract_entities_from_query [32mPASSED[0m[33m [  6%][0m
+tests/test_services/test_hybrid_retriever.py::TestHybridRetriever::test_extract_document_ids_from_subgraph [32mPASSED[0m[33m [  9%][0m
+tests/test_services/test_hybrid_retriever.py::TestHybridRetriever::test_extract_document_ids_empty_graph [32mPASSED[0m[33m [ 12%][0m
+tests/test_services/test_hybrid_retriever.py::TestHybridRetriever::test_extract_relations_from_subgraph [32mPASSED[0m[33m [ 15%][0m
+tests/test_services/test_hybrid_retriever.py::TestHybridRetriever::test_extract_relations_limit [32mPASSED[0m[33m [ 18%][0m
+tests/test_services/test_hybrid_retriever.py::TestHybridRetriever::test_retrieve_empty_graph [32mPASSED[0m[33m [ 21%][0m
+tests/test_services/test_hybrid_retriever.py::TestHybridRetriever::test_retrieve_no_matched_entities [32mPASSED[0m[33m [ 24%][0m
+tests/test_services/test_hybrid_retriever.py::TestHybridRetriever::test_retrieve_with_matches [32mPASSED[0m[33m [ 27%][0m
+tests/test_services/test_hybrid_retriever.py::TestHybridRetriever::test_singleton_pattern [32mPASSED[0m[33m [ 30%][0m
+tests/test_services/test_hybrid_retriever.py::TestHybridRetrieverIntegration::test_full_retrieval_workflow [32mPASSED[0m[33m [ 33%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_assistant_name_matches_config [32mPASSED[0m[33m [ 36%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_get_or_find_assistant_success [32mPASSED[0m[33m [ 39%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_get_or_find_assistant_not_found [32mPASSED[0m[33m [ 42%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_get_or_find_assistant_cached [32mPASSED[0m[33m [ 45%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_build_enhanced_question_with_relations [32mPASSED[0m[33m [ 48%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_build_enhanced_question_no_relations [32mPASSED[0m[33m [ 51%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_build_enhanced_question_limit_relations [32mPASSED[0m[33m [ 54%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_format_references [32mPASSED[0m[33m [ 57%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_chat_session_creation [32mPASSED[0m[33m [ 60%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_chat_session_reuse [32mPASSED[0m[33m [ 63%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_chat_session_fallback [32mPASSED[0m[33m [ 66%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_chat_stream_chunks [32mPASSED[0m[33m [ 69%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_chat_with_references [32mPASSED[0m[33m [ 72%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_chat_error_handling_value_error [32mPASSED[0m[33m [ 75%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_chat_error_handling_connection_error [32mPASSED[0m[33m [ 78%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_clear_session_success [32mPASSED[0m[33m [ 81%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_clear_session_failure [32mPASSED[0m[33m [ 84%][0m
+tests/test_services/test_chat_service.py::TestChatService::test_singleton_pattern [32mPASSED[0m[33m [ 87%][0m
+tests/test_services/test_chat_service.py::TestChatServiceFurtherConsiderations::test_assistant_not_found_shows_detailed_guide [32mPASSED[0m[33m [ 90%][0m
+tests/test_services/test_chat_service.py::TestChatServiceFurtherConsiderations::test_session_management_in_session_state [32mPASSED[0m[33m [ 93%][0m
+tests/test_services/test_chat_service.py::TestChatServiceFurtherConsiderations::test_graph_relations_injected_in_question [32mPASSED[0m[33m [ 96%][0m
+tests/test_services/test_chat_service.py::TestChatServiceFurtherConsiderations::test_relations_limit_10_to_20 [32mPASSED[0m[33m [100%][0m
+
+[33m=============================== warnings summary ===============================[0m
+tests/test_services/test_hybrid_retriever.py:185
+  /Users/laurant/Documents/github/Investopedia/tests/test_services/test_hybrid_retriever.py:185: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+[33m======================== [32m33 passed[0m, [33m[1m1 warning[0m[33m in 0.92s[0m[33m =========================[0m

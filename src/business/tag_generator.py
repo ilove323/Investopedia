@@ -179,7 +179,6 @@ class TagGenerator:
 
         # 如果没有提取到标签，返回默认标签
         if not tags:
-            logger.warning("未能自动提取标签，使用默认标签")
             tags = self._get_default_tags(policy_type)
 
         return tags

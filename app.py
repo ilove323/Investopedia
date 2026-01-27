@@ -37,6 +37,7 @@ LOGS_DIR = config.logs_dir  # 日志目录路径
 PAGES = {
     "🏠 欢迎": "home",
     "🔍 搜索": "search",
+    "💬 聊天": "chat",
     "📊 图谱": "graph",
     "🎤 语音": "voice",
     "📄 文档": "documents",
@@ -367,6 +368,9 @@ def main():
         elif "搜索" in selected_page:
             from src.pages.search_page import show as show_search_page
             show_search_page()
+        elif "聊天" in selected_page:
+            from src.pages.chat_page import show as show_chat_page
+            show_chat_page()
         elif "图谱" in selected_page:
             from src.pages.graph_page import show as show_graph_page
             show_graph_page()
