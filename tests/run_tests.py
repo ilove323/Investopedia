@@ -94,14 +94,12 @@ def run_ragflow_tests():
     # 加载RAGFlow测试
     try:
         from test_ragflow_client import TestRAGFlowClient, TestRAGFlowAPI, TestSystemPromptIntegration
-        from test_ragflow_config_update import TestRAGFlowConfigUpdate
         from test_data_sync import TestDataSyncService
         from final_verification import TestFinalVerification
         
         suite.addTest(loader.loadTestsFromTestCase(TestRAGFlowClient))
         suite.addTest(loader.loadTestsFromTestCase(TestRAGFlowAPI))
         suite.addTest(loader.loadTestsFromTestCase(TestSystemPromptIntegration))
-        suite.addTest(loader.loadTestsFromTestCase(TestRAGFlowConfigUpdate))
         suite.addTest(loader.loadTestsFromTestCase(TestDataSyncService))
         suite.addTest(loader.loadTestsFromTestCase(TestFinalVerification))
     except ImportError as e:

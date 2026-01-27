@@ -68,12 +68,12 @@
 2. 或等待RAGFlow未来版本支持
 3. 或直接在RAGFlow Web界面配置（部分功能可能在UI中可用）
 
-## 配置同步流程
+## 配置使用流程
 
 1. 编辑 `config/knowledgebase/policy_demo_kb.ini`
-2. 启动应用时自动调用 `src/services/config_sync.py`
-3. 配置通过RAGFlow Python SDK同步到知识库
-4. 检查日志确认同步结果
+2. 配置参数由本地程序读取
+3. 知识库设置需在RAGFlow Web界面中配置
+4. 应用启动时自动读取配置文件
 
 ## 测试配置
 
@@ -81,7 +81,7 @@
 
 ```bash
 source venv/bin/activate
-python -m pytest tests/test_config_sync.py -v
+python -m pytest tests/test_config_system.py -v
 ```
 
 ## 参考文档

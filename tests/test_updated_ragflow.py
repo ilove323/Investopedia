@@ -32,22 +32,16 @@ def test_updated_ragflow_client():
         
         # 2. 测试RAGFlow客户端初始化
         print("\n🔄 初始化RAGFlow客户端:")
-        client = RAGFlowClient(auto_configure=True)  # 启用自动配置
+        client = RAGFlowClient()
         
-        # 3. 测试配置读取
-        print("\n📖 读取政策库配置:")
-        kb_config = client.get_knowledge_base_config()
+        # 3. 测试健康检查
+        print("\n📖 测试RAGFlow连接:")
+        health = client.check_health()
         
-        if kb_config:
-            基本信息 = kb_config.get('知识库基本信息', {})
-            解析器配置 = kb_config.get('解析器配置', {})
-            图谱配置 = kb_config.get('图谱配置', {})
-            
-            print(f"✅ 成功读取配置:")
-            print(f"  知识库名称: {基本信息.get('名称')}")
-            print(f"  分块Token数: {解析器配置.get('分块Token数')}")
-            print(f"  分块方法: {基本信息.get('分块方法')}")
-            print(f"  相似度阈值: {基本信息.get('相似度阈值')}")
+        if health:
+            print(f"✅ 成功连接RAGFlow")
+        else:
+            print(f"❌ 无法连接RAGFlow")
             print(f"  图谱检索: {图谱配置.get('使用图谱')}")
             print(f"  实体归一化: {图谱配置.get('实体归一化')}")
             print(f"  布局识别: {解析器配置.get('布局识别')}")

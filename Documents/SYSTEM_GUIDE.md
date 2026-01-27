@@ -92,7 +92,7 @@ max_tokens = 2000
 ### 测试覆盖范围
 - ✅ **配置系统** (10个测试) - 配置加载、验证、KB管理
 - ✅ **RAGFlow集成** (10个测试) - 客户端、API连接、健康检查
-- ✅ **配置更新** (6个测试) - 参数映射、API调用、端到端流程  
+- ✅ **RAGFlow SDK客户端** (20个测试) - 初始化、健康检查、文档操作、问答  
 - ✅ **API探索** (7个测试) - 端点发现、性能测试、并发调用
 
 **当前状态**: 33个测试，32个通过，1个跳过，成功率100%
@@ -206,7 +206,7 @@ mock_function.assert_called_with(expected_args)
 
 #### RAGFlow集成 (src/services/ragflow_client.py)
 - **RAGFlowClient**: RAGFlow API客户端
-- **功能**: 配置更新、知识库管理、文档检索
+- **功能**: 文档管理、知识库检索、问答服务
 - **特性**: 自动配置应用、健康检查、错误重试
 
 #### 业务逻辑 (src/business/)
@@ -215,8 +215,8 @@ mock_function.assert_called_with(expected_args)
 - **ValidityChecker**: 政策有效性检查
 
 ### API端点
-- **RAGFlow**: PUT /api/v1/datasets/{dataset_id} (配置更新)
-- **RAGFlow**: GET /api/v1/datasets/{dataset_id} (配置查询)
+- **RAGFlow**: GET /api/v1/datasets (数据集列表)
+- **RAGFlow**: POST /api/v1/documents/upload (文档上传)
 - **DeepSeek**: POST /chat/completions (AI对话)
 - **Whisper**: POST /transcribe (语音识别)
 
@@ -232,7 +232,6 @@ mock_function.assert_called_with(expected_args)
 - 配置文件存在性检查
 - 必需参数验证
 - 类型转换和默认值
-- 配置更新后自动生效
 
 ## 📊 状态监控
 

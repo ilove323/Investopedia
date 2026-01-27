@@ -27,7 +27,7 @@ class TestDocumentListFix(unittest.TestCase):
 
     def setUp(self):
         """测试前设置"""
-        self.client = RAGFlowClient(auto_configure=False)
+        self.client = RAGFlowClient()
         self.test_kb_name = "policy_demo_kb"
 
     def test_api_endpoint_fix(self):
@@ -58,7 +58,7 @@ class TestDocumentListFix(unittest.TestCase):
     def test_get_documents_workflow(self):
         """测试get_documents完整工作流程"""
         # Mock dataset and documents
-        test_client = RAGFlowClient(auto_configure=False)
+        test_client = RAGFlowClient()
         dataset_id = 'test_dataset_123'
 
         mock_dataset = MagicMock()
@@ -95,7 +95,7 @@ class TestDocumentListFix(unittest.TestCase):
     def test_error_handling(self):
         """测试错误处理机制"""
         # 创建一个新的客户端实例来避免干扰
-        test_client = RAGFlowClient(auto_configure=False)
+        test_client = RAGFlowClient()
 
         # 测试知识库不存在的情况
         with patch.object(test_client.rag, 'list_datasets') as mock_list_datasets:
@@ -127,7 +127,7 @@ class TestDocumentListFix(unittest.TestCase):
             self.assertIn(':9380', config.ragflow_web_url)
             
             # 测试客户端初始化
-            client = RAGFlowClient(auto_configure=False)
+            client = RAGFlowClient()
             self.assertIsNotNone(client)
             
             # 测试文档列表获取

@@ -17,14 +17,15 @@
 **测试覆盖范围**：
 - ✅ 配置系统加载和验证 (10个测试)
 - ✅ RAGFlow SDK客户端功能 (20个测试)
-- ✅ RAGFlow配置管理 (7个测试)
+- ✅ 配置系统测试 (10个测试)
+- ✅ RAGFlow SDK客户端 (20个测试)
 - ✅ API接口探索和性能 (7个测试)
 - ✅ 文档列表功能验证 (7个测试)
 - ✅ 数据同步服务功能 (8个测试)
 - ✅ 系统提示词集成 (5个测试)
 - ✅ 其他集成测试 (3个测试)
 
-**测试结果**: 67个测试，65个通过，2个跳过，成功率97%
+**测试结果**: 60个测试，58个通过，2个跳过，成功率97%
 
 ## 📁 测试文件结构
 
@@ -33,7 +34,6 @@ tests/
 ├── run_tests.py                     # 测试运行器主程序
 ├── test_config_system.py            # 配置系统测试
 ├── test_ragflow_client.py           # RAGFlow客户端测试  
-├── test_ragflow_config_update.py    # RAGFlow配置更新测试
 ├── test_ragflow_api_exploration.py  # RAGFlow API探索测试
 ├── test_document_list_fix.py        # 文档列表功能修复验证测试
 ├── test_data_sync.py                # 数据同步服务测试
@@ -136,7 +136,6 @@ python -m pytest tests/ -k "sdk" -v     # 运行所有包含sdk的测试
 - 文档上传、删除、列表操作
 - 语义搜索和检索
 - 智能问答（聊天助手）
-- 配置管理和更新
 - 系统提示词集成
 - SDK错误处理
 
@@ -155,19 +154,7 @@ python -m pytest tests/ -k "sdk" -v     # 运行所有包含sdk的测试
 - ✅ 覆盖所有SDK核心方法
 - ✅ 测试错误降级和容错机制
 
-### 3. test_ragflow_config_update.py
-**目的**: 测试RAGFlow配置更新的完整流程
-
-**测试内容**:
-- 配置更新payload构建
-- API调用执行
-- 更新结果验证
-- 失败场景处理
-
-**测试类**:
-- `TestRAGFlowConfigUpdate`: 配置更新集成测试
-
-### 4. test_ragflow_api_exploration.py
+### 3. test_ragflow_api_exploration.py
 **目的**: 测试RAGFlow API探索和性能评估
 
 **测试内容**:

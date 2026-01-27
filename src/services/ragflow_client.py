@@ -67,12 +67,8 @@ logger = logging.getLogger(__name__)
 class RAGFlowClient:
     """RAGFlow客户端 - 使用官方SDK"""
 
-    def __init__(self, auto_configure: bool = True):
-        """初始化RAGFlow客户端
-
-        Args:
-            auto_configure: 是否在初始化时自动应用配置参数
-        """
+    def __init__(self):
+        """初始化RAGFlow客户端"""
         if RAGFlow is None:
             raise ImportError("RAGFlow SDK not available. Please install: pip install ragflow-sdk")
 
@@ -88,50 +84,7 @@ class RAGFlowClient:
 
         logger.info(f"RAGFlow SDK initialized: {RAGFLOW_BASE_URL}")
 
-        # 自动应用配置参数
-        if auto_configure:
-            self._apply_configuration()
 
-    def _apply_configuration(self):
-        """应用配置文件中的RAGFlow参数"""
-        try:
-            from src.config import get_config
-
-            config = get_config()
-
-            # 获取默认知识库配置
-            kb_name = config.default_kb_name
-            kb_config = config.get_kb_config(kb_name)
-
-            if not kb_config:
-                logger.warning(f"⚠️ 无法加载知识库 '{kb_name}' 的配置")
-                return
-
-            logger.info(f"开始应用知识库 '{kb_name}' 的配置...")
-
-            # 1. 首先检查知识库是否存在
-            if not self._check_knowledge_base_exists(kb_config['kb_name']):
-                logger.warning(f"⚠️ 知识库 '{kb_config['kb_name']}' 不存在")
-                logger.info(f"💡 请在RAGFlow Web界面 ({RAGFLOW_BASE_URL}) 中创建知识库")
-                logger.warning("RAGFlow配置可能未完全生效")
-                return
-
-            logger.info(f"📋 应用配置: {len(kb_config)} 个参数")
-
-            # 2. 应用知识库配置
-            success = self._update_knowledge_base_config(kb_config['kb_name'], kb_config)
-
-            if success:
-                logger.info("✅ 知识库配置应用成功")
-                logger.info(f"🏛️ 配置详情: 分块大小={kb_config.get('chunk_size')}, "
-                          f"相似度阈值={kb_config.get('similarity_threshold')}, "
-                          f"图谱检索={kb_config.get('graph_retrieval')}")
-            else:
-                logger.warning("⚠️ 知识库配置可能未完全生效")
-
-        except Exception as e:
-            logger.warning(f"自动配置失败: {e}")
-            logger.warning("RAGFlow配置可能未完全生效")
 
     def _get_or_create_dataset(self, kb_name: str):
         """获取或缓存数据集对象
@@ -182,40 +135,7 @@ class RAGFlowClient:
             logger.warning(f"知识库存在性检查失败: {e}")
             return False
 
-    def _update_knowledge_base_config(self, kb_name: str, config_params: dict) -> bool:
-        """更新知识库配置
 
-        Args:
-            kb_name: 知识库名称
-            config_params: 配置参数字典
-
-        Returns:
-            更新是否成功
-        """
-        try:
-            logger.debug(f"开始更新知识库 '{kb_name}' 的配置...")
-
-            # 获取数据集对象
-            dataset = self._get_or_create_dataset(kb_name)
-            if not dataset:
-                logger.error(f"无法获取知识库 '{kb_name}'")
-                return False
-
-            # 构建符合API文档的配置数据
-            update_data = self._build_dataset_update_payload(config_params)
-
-            logger.debug(f"更新数据: {update_data}")
-            logger.info(f"向知识库 '{kb_name}' 应用配置...")
-
-            # 使用SDK更新数据集配置
-            dataset.update(update_data)
-
-            logger.info(f"✅ 知识库配置更新成功: {kb_name}")
-            return True
-
-        except Exception as e:
-            logger.error(f"知识库配置更新异常: {e}")
-            return False
 
     def _get_knowledge_base_id(self, kb_name: str) -> Optional[str]:
         """获取知识库ID
@@ -341,74 +261,7 @@ class RAGFlowClient:
             logger.error(f"获取或创建会话失败: {e}")
             return None
 
-    def _build_dataset_update_payload(self, config_params: dict) -> dict:
-        """根据API文档构建数据集更新载荷
 
-        Args:
-            config_params: 配置参数
-
-        Returns:
-            符合API文档格式的更新数据
-        """
-        # 基础更新数据
-        update_data = {}
-
-        # Note: System prompts should be set via Chat Assistant, not Dataset
-        # Dataset.update() doesn't accept prompt/system_prompt/llm_setting fields
-        # These are configured when creating/updating chat assistants instead
-
-        # 设置分块方法
-        chunk_method = "naive"  # 默认使用General方法
-        if config_params.get("pdf_parser") == "deepdoc":
-            chunk_method = "naive"  # deepdoc对应General
-        elif config_params.get("pdf_parser") == "laws":
-            chunk_method = "laws"
-
-        update_data["chunk_method"] = chunk_method
-
-        # 构建parser_config根据chunk_method
-        parser_config = {}
-
-        if chunk_method == "naive":
-            # General方法的parser_config
-            parser_config = {
-                "chunk_token_num": config_params.get("chunk_size", 800),
-                "auto_keywords": 1 if config_params.get("auto_keywords", True) else 0,
-                "auto_questions": 0,  # 不启用自动问题生成
-                "delimiter": "\\n",
-                "html4excel": False,
-                "layout_recognize": "deepdoc",  # 使用deepdoc布局识别
-                "task_page_size": 12,
-                "raptor": {
-                    "use_raptor": config_params.get("graph_retrieval", True),
-                    "max_cluster": config_params.get("max_clusters", 50),
-                    "max_token": config_params.get("max_tokens", 256),
-                    "threshold": config_params.get("similarity_threshold", 0.3),
-                    "random_seed": config_params.get("random_seed", 42)
-                },
-                "graphrag": {
-                    "use_graphrag": config_params.get("graph_retrieval", True),
-                    "entity_types": ["organization", "person", "geo", "event", "category"],
-                    "method": config_params.get("retrieval_mode", "general"),
-                    "resolution": config_params.get("entity_normalization", True)
-                }
-            }
-
-        elif chunk_method == "laws":
-            # Laws方法的parser_config (只有raptor配置)
-            parser_config = {
-                "raptor": {
-                    "use_raptor": config_params.get("graph_retrieval", True),
-                    "max_cluster": config_params.get("max_clusters", 50),
-                    "max_token": config_params.get("max_tokens", 256),
-                    "threshold": config_params.get("similarity_threshold", 0.3),
-                    "random_seed": config_params.get("random_seed", 42)
-                }
-            }
-
-        update_data["parser_config"] = parser_config
-
-        return update_data
 
     def check_health(self) -> bool:
         """
@@ -913,80 +766,9 @@ class RAGFlowClient:
             logger.error(f"获取文档分块失败 (doc_id: {doc_id}): {e}")
             return []
 
-    def configure_knowledge_base(self, kb_name: Optional[str] = None) -> bool:
-        """手动配置知识库
 
-        Args:
-            kb_name: 知识库名称，默认使用配置文件中的值
 
-        Returns:
-            配置是否成功
-        """
-        try:
-            from src.config import get_config
 
-            config = get_config()
-
-            if kb_name is None:
-                kb_name = config.default_kb_name
-
-            # 获取配置参数
-            kb_config = config.ragflow_document_config
-            advanced_config = config.ragflow_advanced_config
-            full_config = {**kb_config, **advanced_config}
-
-            logger.info(f"手动配置知识库: {kb_name}")
-
-            return self._update_knowledge_base_config(kb_name, full_config)
-
-        except Exception as e:
-            logger.error(f"手动配置知识库失败: {e}")
-            return False
-
-    def get_knowledge_base_config(self, kb_name: Optional[str] = None) -> dict:
-        """获取知识库当前配置
-
-        Args:
-            kb_name: 知识库名称
-
-        Returns:
-            知识库配置字典
-        """
-        try:
-            if kb_name is None:
-                from src.config import get_config
-                config = get_config()
-                kb_name = config.default_kb_name
-
-            # 获取数据集对象
-            dataset = self._get_or_create_dataset(kb_name)
-            if not dataset:
-                return {}
-
-            # 从数据集对象提取配置
-            config_info = {
-                "知识库基本信息": {
-                    "名称": dataset.name,
-                    "ID": dataset.id,
-                    "分块方法": getattr(dataset, 'chunk_method', ''),
-                    "嵌入模型": getattr(dataset, 'embedding_model', ''),
-                    "文档数量": getattr(dataset, 'document_count', 0),
-                    "分块数量": getattr(dataset, 'chunk_count', 0),
-                    "相似度阈值": getattr(dataset, 'similarity_threshold', None),
-                    "向量权重": getattr(dataset, 'vector_similarity_weight', None)
-                }
-            }
-
-            # 尝试提取parser_config
-            parser_config = getattr(dataset, 'parser_config', None)
-            if parser_config:
-                config_info["解析器配置"] = parser_config
-
-            return config_info
-
-        except Exception as e:
-            logger.warning(f"获取知识库配置异常: {e}")
-            return {}
 
     def __enter__(self):
         """上下文管理器入口"""

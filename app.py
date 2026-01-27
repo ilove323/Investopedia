@@ -131,37 +131,6 @@ def initialize_session_state():
             st.session_state[key] = value
 
 
-def initialize_ragflow_config():
-    """初始化RAGFlow配置
-    
-    在应用启动时自动同步知识库配置到RAGFlow
-    """
-    try:
-        if 'ragflow_config_synced' not in st.session_state:
-            logger.info("开始同步RAGFlow配置...")
-            
-            from src.services.config_sync import sync_ragflow_configs
-            
-            # 同步所有知识库配置
-            results = sync_ragflow_configs()
-            
-            # 记录同步状态
-            st.session_state.ragflow_config_synced = True
-            st.session_state.ragflow_sync_results = results
-            
-            # 显示同步结果
-            success_count = sum(1 for r in results.values() if r)
-            total_count = len(results)
-            
-            if success_count == total_count:
-                logger.info(f"✅ RAGFlow配置同步完成: {success_count}/{total_count}")
-            else:
-                logger.warning(f"⚠️ RAGFlow配置部分同步: {success_count}/{total_count}")
-                
-    except Exception as e:
-        logger.warning(f"RAGFlow配置同步失败: {e}")
-        st.session_state.ragflow_config_synced = False
-
 
 def check_services():
     """检查外部服务状态"""
@@ -174,15 +143,10 @@ def check_services():
             ragflow_status = ragflow.check_health()
             ragflow_indicator = "✅" if ragflow_status else "⚠️"
             
-            # 显示配置状态
-            config_status = st.session_state.get('ragflow_configured', False)
-            config_indicator = "✅" if config_status else "⚠️"
-            
         except Exception as e:
             logger.warning(f"RAGFlow连接检查失败: {e}")
             ragflow_indicator = "❌"
             ragflow_status = False
-            config_indicator = "❌"
 
         # 检查Whisper
         try:
@@ -207,35 +171,19 @@ def check_services():
         col1, col2 = st.columns(2)
         with col1:
             st.write(f"{ragflow_indicator} RAGFlow")
-            st.write(f"{config_indicator} 配置应用")
         with col2:
             st.write(f"{whisper_indicator} Whisper")
             st.write(f"{db_indicator} 数据库")
 
         # 配置详情
         with st.expander("🔧 配置详情"):
-            if config_status:
-                st.success("RAGFlow配置已自动应用")
-                st.info("知识库: " + getattr(config, 'ragflow_kb_name', 'policy_demo_kb'))
-                
-                # 显示部分配置参数
-                doc_config = config.ragflow_document_config  # 这是property，不需要()
-                st.text(f"分块大小: {doc_config.get('chunk_size', 800)}")
-                st.text(f"PDF解析器: {doc_config.get('pdf_parser', 'deepdoc')}")
-                st.text(f"检索方法: {doc_config.get('retrieval_method', 'General')}")
-            else:
-                st.warning("RAGFlow配置未完全生效")
-                if st.button("🔄 重新配置"):
-                    # 手动触发配置
-                    try:
-                        ragflow = get_ragflow_client()
-                        if ragflow.configure_knowledge_base():
-                            st.session_state.ragflow_configured = True
-                            st.rerun()
-                        else:
-                            st.error("配置失败")
-                    except Exception as e:
-                        st.error(f"配置失败: {e}")
+            st.info("知识库: " + getattr(config, 'ragflow_kb_name', 'policy_demo_kb'))
+            
+            # 显示部分配置参数
+            doc_config = config.ragflow_document_config  # 这是property，不需要()
+            st.text(f"分块大小: {doc_config.get('chunk_size', 1024)}")
+            st.text(f"分块方法: {doc_config.get('chunk_method', 'laws')}")
+            st.text(f"检索模式: {doc_config.get('retrieval_mode', 'general')}")
 
     # 警告信息
     if not all([ragflow_status, whisper_status, db_status]):
@@ -340,9 +288,6 @@ def main():
 
     # 初始化会话状态
     initialize_session_state()
-    
-    # 初始化RAGFlow配置
-    initialize_ragflow_config()
 
     # 显示侧边栏
     show_sidebar()

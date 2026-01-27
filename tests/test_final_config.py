@@ -58,27 +58,14 @@ def test_new_config_system():
         
         # 5. 测试RAGFlow客户端
         print("\n🚀 RAGFlow客户端测试:")
-        client = RAGFlowClient(auto_configure=True)
+        client = RAGFlowClient()
         
-        # 读取实际配置
-        kb_config = client.get_knowledge_base_config()
-        if kb_config:
-            基本信息 = kb_config.get('知识库基本信息', {})
-            解析器配置 = kb_config.get('解析器配置', {})
-            
-            print(f"✅ 成功连接RAGFlow:")
-            print(f"  实际分块Token数: {解析器配置.get('分块Token数')}")
-            print(f"  实际分块方法: {基本信息.get('分块方法')}")
-            print(f"  实际布局识别: {解析器配置.get('布局识别')}")
-            
-            # 验证配置是否生效
-            chunk_size = 解析器配置.get('分块Token数')
-            if chunk_size and chunk_size >= 800:
-                print("  ✅ 政策文档分块配置正确")
-            else:
-                print(f"  ⚠️  分块配置可能需要调整: {chunk_size}")
+        # 测试健康检查
+        health = client.check_health()
+        if health:
+            print(f"✅ 成功连接RAGFlow")
         else:
-            print("  ❌ 无法连接RAGFlow或读取配置")
+            print("  ❌ 无法连接RAGFlow")
         
         print("\n🎉 配置系统测试完成！")
         print("\n💡 添加新知识库的步骤:")

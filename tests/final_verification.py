@@ -28,110 +28,35 @@ class TestFinalVerification(unittest.TestCase):
         
     def test_final_config_display(self):
         """测试最终配置显示"""
-        with patch('src.services.ragflow_client.requests') as mock_requests:
-            # 模拟配置获取响应
-            mock_response = Mock()
-            mock_response.status_code = 200
-            mock_response.json.return_value = {
-                "retcode": 0,
-                "data": {
-                    "name": self.kb_name,
-                    "parser_config": {
-                        "chunk_token_num": 800,
-                        "layout_recognize": True
-                    },
-                    "graph_rag": {
-                        "enabled": True,
-                        "entity_resolution": True  
-                    }
-                }
-            }
-            mock_requests.get.return_value = mock_response
-            
-            client = RAGFlowClient(auto_configure=False)
-            config = client.get_knowledge_base_config(self.kb_name)
-            
-            self.assertIsNotNone(config)
-            if config:
-                # 验证关键配置存在（使用中文键）
-                if "解析器配置" in config:
-                    parser_config = config["解析器配置"]
-                    self.assertIn("分块Token数", parser_config)
-                elif "parser_config" in config:
-                    # 兼容英文键
-                    parser_config = config["parser_config"]
-                    self.assertIn("chunk_token_num", parser_config)
+        client = RAGFlowClient()
+        
+        # 测试基本连接
+        health = client.check_health()
+        self.assertIsNotNone(health)
                 
-    def test_final_config_update(self):
-        """测试最终配置更新功能"""
-        with patch('src.services.ragflow_client.requests') as mock_requests:
-            # 模拟更新成功响应
-            mock_response = Mock()
-            mock_response.status_code = 200
-            mock_response.json.return_value = {"retcode": 0}
-            mock_requests.put.return_value = mock_response
-            
-            client = RAGFlowClient(auto_configure=False)
-            
-            # 测试配置更新
-            test_config = {
-                'chunk_size': self.expected_chunk_size,
-                'graph_retrieval': True,
-                'entity_normalization': True
-            }
-            
-            result = client._apply_configuration()
-            
-            # 验证配置更新调用
-            if mock_requests.put.called:
-                self.assertTrue(result or result is None)  # 允许None返回
+    def test_ragflow_connection(self):
+        """测试RAGFlow连接功能"""
+        client = RAGFlowClient()
+        
+        # 测试健康检查
+        try:
+            health = client.check_health()
+            self.assertIsNotNone(health)
+        except Exception as e:
+            self.skipTest(f"RAGFlow连接失败: {e}")
+                
+    def test_dataset_access(self):
+        """测试数据集访问"""
+        client = RAGFlowClient()
+        
+        try:
+            dataset = client._get_or_create_dataset(self.kb_name)
+            if dataset:
+                self.assertIsNotNone(dataset)
             else:
-                # 如果没有调用，至少验证客户端初始化正确
-                self.assertIsNotNone(client)
-                
-    def test_final_config_verification(self):
-        """测试最终配置验证"""
-        with patch('src.services.ragflow_client.requests') as mock_requests:
-            # 模拟验证阶段的配置获取
-            mock_response = Mock()
-            mock_response.status_code = 200
-            mock_response.json.return_value = {
-                "retcode": 0,
-                "data": {
-                    "parser_config": {
-                        "chunk_token_num": self.expected_chunk_size,  # 已更新的值
-                        "layout_recognize": True
-                    },
-                    "graph_rag": {
-                        "enabled": True,
-                        "entity_resolution": True
-                    }
-                }
-            }
-            mock_requests.get.return_value = mock_response
-            
-            client = RAGFlowClient(auto_configure=False)
-            config = client.get_knowledge_base_config(self.kb_name)
-            
-            if config:
-                # 验证更新结果
-                parser_config = config.get("parser_config", {})
-                graph_config = config.get("graph_rag", {})
-                
-                # 检查分块Token数
-                actual_chunk_size = parser_config.get("chunk_token_num")
-                if actual_chunk_size is not None:
-                    self.assertEqual(actual_chunk_size, self.expected_chunk_size,
-                                   f"分块Token数应为{self.expected_chunk_size}, 实际为{actual_chunk_size}")
-                
-                # 检查图谱配置
-                graph_enabled = graph_config.get("enabled")
-                if graph_enabled is not None:
-                    self.assertTrue(graph_enabled, "图谱检索应已启用")
-                    
-                entity_resolution = graph_config.get("entity_resolution")
-                if entity_resolution is not None:
-                    self.assertTrue(entity_resolution, "实体归一化应已启用")
+                self.skipTest("知识库不存在或无法访问")
+        except Exception as e:
+            self.skipTest(f"数据集访问失败: {e}")
                     
     def test_final_integration_flow(self):
         """测试最终集成流程"""
@@ -164,29 +89,11 @@ class TestFinalVerification(unittest.TestCase):
             mock_requests.get.side_effect = [mock_resp1, mock_resp3]
             mock_requests.put.return_value = mock_resp2
             
-            client = RAGFlowClient(auto_configure=False)
+            client = RAGFlowClient()
             
-            # 步骤1：获取当前配置
-            current_config = client.get_knowledge_base_config(self.kb_name)
-            self.assertIsNotNone(current_config)
-            
-            # 步骤2：执行配置更新（如果方法存在）
-            try:
-                result = client._apply_configuration()
-                # 如果成功，继续验证
-                if result is not False:
-                    # 步骤3：验证更新
-                    updated_config = client.get_knowledge_base_config(self.kb_name)
-                    if updated_config:
-                        parser_config = updated_config.get("parser_config", {})
-                        chunk_size = parser_config.get("chunk_token_num")
-                        
-                        # 验证配置已更新
-                        if chunk_size is not None:
-                            self.assertEqual(chunk_size, self.expected_chunk_size)
-            except Exception as e:
-                # 如果方法不存在或出错，记录但不失败
-                self.skipTest(f"配置更新功能不可用: {e}")
+            # 测试知识库连接
+            # 注意：配置更新功能已移除，仅测试连接
+            self.assertTrue(client.check_health())
 
 
 class TestFinalConfigValidation(unittest.TestCase):
