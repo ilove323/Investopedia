@@ -18,7 +18,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / 'src'))
 
-from src.services.ragflow_client import RAGFlowClient
+from src.clients.ragflow_client import RAGFlowClient
 from src.config.config_loader import ConfigLoader
 
 

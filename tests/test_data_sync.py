@@ -25,7 +25,7 @@ sys.path.insert(0, project_root)
 
 from src.services.data_sync import DataSyncService
 from src.database.policy_dao import PolicyDAO
-from src.services.ragflow_client import RAGFlowClient
+from src.clients.ragflow_client import RAGFlowClient
 
 
 class TestDataSyncService(unittest.TestCase):

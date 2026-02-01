@@ -45,7 +45,7 @@ PAGES = {
 }
 
 from src.database.db_manager import get_db_manager
-from src.services.ragflow_client import get_ragflow_client
+from src.clients.ragflow_client import get_ragflow_client
 from src.services.whisper_client import get_whisper_client
 from src.utils.logger import setup_logger
 

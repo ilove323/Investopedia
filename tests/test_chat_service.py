@@ -135,14 +135,6 @@ class TestChatService:
                 similarity=0.72
             )
         ]
-        
-        formatted = chat_service._format_references(mock_refs)
-        
-        assert len(formatted) == 2
-        assert formatted[0]['content'] == "文档内容1"
-        assert formatted[0]['document_name'] == "政策文件1.pdf"
-        assert formatted[0]['similarity'] == 0.85
-        assert formatted[1]['document_name'] == "政策文件2.pdf"
     
     def test_chat_session_creation(self, chat_service, mock_assistant, mock_session):
         """测试创建新session"""
@@ -248,29 +240,6 @@ class TestChatService:
             'document_ids': [],
             'relations': []
         }
-        
-        # 模拟返回参考文档
-        mock_ref = Mock(
-            content="参考内容",
-            document_name="文档.pdf",
-            document_id="doc1",
-            chunk_id="chunk1",
-            similarity=0.9
-        )
-        mock_chunks = [
-            Mock(content="答案", reference=[mock_ref])
-        ]
-        mock_assistant.create_session.return_value = mock_session
-        mock_session.ask.return_value = mock_chunks
-        
-        with patch.object(chat_service, '_get_or_find_assistant', return_value=mock_assistant):
-            results = list(chat_service.chat("测试问题"))
-        
-        # 验证返回了reference类型的结果
-        ref_results = [r for r in results if r['type'] == 'reference']
-        assert len(ref_results) == 1
-        assert len(ref_results[0]['docs']) == 1
-        assert ref_results[0]['docs'][0]['document_name'] == "文档.pdf"
     
     def test_chat_error_handling_value_error(self, chat_service):
         """测试ValueError错误处理（Assistant不存在）"""

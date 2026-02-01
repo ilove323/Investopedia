@@ -60,7 +60,7 @@ class TestFinalVerification(unittest.TestCase):
                     
     def test_final_integration_flow(self):
         """测试最终集成流程"""
-        with patch('src.services.ragflow_client.requests') as mock_requests:
+        with patch('src.clients.ragflow_client.requests') as mock_requests:
             # 模拟完整流程
             mock_responses = []
             

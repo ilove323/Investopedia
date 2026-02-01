@@ -20,8 +20,8 @@
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
-from src.services.ragflow_client import RAGFlowClient
-from src.services.qwen_client import get_qwen_client
+from src.clients.ragflow_client import RAGFlowClient
+from src.clients.qwen_client import get_qwen_client
 from src.database.policy_dao import PolicyDAO
 from src.database.graph_dao import GraphDAO
 from src.business.metadata_extractor import MetadataExtractor

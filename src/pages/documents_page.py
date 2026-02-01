@@ -21,7 +21,7 @@ RAGFlow文档查看器页面
 """
 import streamlit as st
 from typing import List, Dict, Any, Optional
-from src.services.ragflow_client import get_ragflow_client
+from src.clients.ragflow_client import get_ragflow_client
 from src.services.data_sync import DataSyncService
 from src.config import get_config
 import logging

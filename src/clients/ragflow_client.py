@@ -23,7 +23,7 @@ RAGFlow服务客户端
 - api_key: RAGFlow API密钥
 
 使用示例：
-    from src.services.ragflow_client import get_ragflow_client
+    from src.clients.ragflow_client import get_ragflow_client
 
     client = get_ragflow_client()
 

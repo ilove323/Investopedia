@@ -183,7 +183,7 @@ def check_health(self) -> bool:
 
 **示例**:
 ```python
-from src.services.ragflow_client import get_ragflow_client
+from src.clients.ragflow_client import get_ragflow_client
 
 client = get_ragflow_client()
 if client.check_health():

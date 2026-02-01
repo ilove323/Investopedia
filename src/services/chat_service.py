@@ -11,7 +11,7 @@
 import logging
 from typing import Optional, Dict, Any, Iterator
 
-from src.services.ragflow_client import get_ragflow_client
+from src.clients.ragflow_client import get_ragflow_client
 from src.services.hybrid_retriever import get_hybrid_retriever
 from src.config import get_config
 

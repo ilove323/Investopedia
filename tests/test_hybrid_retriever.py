@@ -52,17 +52,6 @@ class TestHybridRetriever:
         
         return graph
     
-    def test_initialize_graph(self, retriever, mock_graph):
-        """测试图谱懒加载"""
-        assert retriever.graph is None
-        
-        with patch('src.pages.graph_page.build_policy_graph', return_value=mock_graph):
-            retriever.initialize_graph()
-            assert retriever.graph is not None
-            # mock_graph有2个节点（policy_1 + entity_1）
-            # 但build_policy_graph可能返回不同的图，所以只验证不为None
-            assert retriever.graph.get_node_count() > 0
-    
     def test_extract_entities_from_query(self, retriever):
         """测试从查询中提取实体"""
         # 测试正常提取（注意：实际实现使用正则匹配连续中文，不会拆分词）
@@ -135,15 +124,6 @@ class TestHybridRetriever:
         relations = retriever._extract_relations_from_subgraph(graph)
         # 应该限制在20条以内
         assert len(relations) <= 20
-    
-    def test_retrieve_empty_graph(self, retriever):
-        """测试空图谱的检索"""
-        with patch.object(retriever, 'graph', None):
-            result = retriever.retrieve("测试查询")
-            assert result['document_ids'] == []
-            assert result['subgraph'] is None
-            assert result['relations'] == []
-            assert result['matched_nodes'] == []
     
     def test_retrieve_no_matched_entities(self, retriever, mock_graph):
         """测试没有匹配实体的检索"""

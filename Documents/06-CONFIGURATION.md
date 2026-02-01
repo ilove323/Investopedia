@@ -552,7 +552,7 @@ print('✅ 配置验证通过！')
 
 # 测试RAGFlow连接
 python -c "
-from src.services.ragflow_client import get_ragflow_client
+from src.clients.ragflow_client import get_ragflow_client
 client = get_ragflow_client()
 health = client.check_health()
 print(f'RAGFlow状态: {health}')
@@ -560,7 +560,7 @@ print(f'RAGFlow状态: {health}')
 
 # 测试Qwen API
 python -c "
-from src.services.qwen_client import get_qwen_client
+from src.clients.qwen_client import get_qwen_client
 client = get_qwen_client()
 result = client.extract_entities_and_relations('测试文本', '测试文档')
 print(f'Qwen API正常: {len(result[\"entities\"])} 个实体')

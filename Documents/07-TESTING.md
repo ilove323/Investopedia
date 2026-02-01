@@ -110,7 +110,7 @@ class TestConfigSystem(unittest.TestCase):
 ```python
 from unittest.mock import Mock, patch
 
-@patch('src.services.ragflow_client.RAGFlow')
+@patch('src.clients.ragflow_client.RAGFlow')
 def test_with_mock(mock_ragflow):
     """使用mock测试，避免真实API调用"""
     mock_ragflow.return_value.list_datasets.return_value = []
@@ -306,9 +306,9 @@ class TestChatService:
 # tests/test_ragflow_client.py
 from unittest.mock import Mock, patch
 import pytest
-from src.services.ragflow_client import RAGFlowClient
+from src.clients.ragflow_client import RAGFlowClient
 
-@patch('src.services.ragflow_client.RAGFlow')
+@patch('src.clients.ragflow_client.RAGFlow')
 class TestRAGFlowClient:
     """RAGFlow客户端测试（使用Mock）"""
     

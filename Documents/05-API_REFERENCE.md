@@ -23,7 +23,7 @@
 
 #### 初始化
 ```python
-from src.services.ragflow_client import get_ragflow_client
+from src.clients.ragflow_client import get_ragflow_client
 
 client = get_ragflow_client()
 ```
@@ -188,7 +188,7 @@ print(f"可用知识库: {', '.join(kbs)}")
 
 #### 初始化
 ```python
-from src.services.qwen_client import get_qwen_client
+from src.clients.qwen_client import get_qwen_client
 
 client = get_qwen_client()
 ```

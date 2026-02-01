@@ -17,7 +17,7 @@ from unittest.mock import patch, MagicMock
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / 'src'))
 
-from src.services.ragflow_client import RAGFlowClient
+from src.clients.ragflow_client import RAGFlowClient
 from src.config.config_loader import ConfigLoader
 
 
@@ -330,7 +330,7 @@ class TestSystemPromptIntegration(unittest.TestCase):
         mock_message.reference = []
 
         # Mock配置
-        with patch('src.services.ragflow_client.get_config') as mock_get_config, \
+        with patch('src.clients.ragflow_client.get_config') as mock_get_config, \
              patch.object(client.rag, 'list_datasets') as mock_list_datasets, \
              patch.object(client.rag, 'list_chats') as mock_list_chats, \
              patch.object(mock_chat, 'list_sessions') as mock_list_sessions, \

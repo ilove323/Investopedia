@@ -272,7 +272,7 @@ def example():
 #### 代码示例规范
 ```python
 # ✅ 好的示例：完整可运行
-from src.services.ragflow_client import get_ragflow_client
+from src.clients.ragflow_client import get_ragflow_client
 
 client = get_ragflow_client()
 docs = client.get_documents("policy_demo_kb")

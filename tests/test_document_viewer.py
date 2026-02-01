@@ -15,7 +15,7 @@ import pytest
 # 添加src路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.services.ragflow_client import RAGFlowClient
+from src.clients.ragflow_client import RAGFlowClient
 from src.config import get_config
 
 
@@ -25,7 +25,7 @@ class TestDocumentViewer:
     @pytest.fixture
     def ragflow_client(self):
         """RAGFlow客户端fixture"""
-        from src.services.ragflow_client import get_ragflow_client
+        from src.clients.ragflow_client import get_ragflow_client
         return get_ragflow_client()
     
     def test_pdf_content_extraction(self, ragflow_client):
@@ -174,7 +174,7 @@ def run_tests():
     
     try:
         # 获取RAGFlow客户端
-        from src.services.ragflow_client import get_ragflow_client
+        from src.clients.ragflow_client import get_ragflow_client
         ragflow_client = get_ragflow_client()
         
         # 检查RAGFlow连接
