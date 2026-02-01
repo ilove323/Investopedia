@@ -39,14 +39,13 @@ PAGES = {
     "🔍 搜索": "search",
     "💬 聊天": "chat",
     "📊 图谱": "graph",
-    "🎤 语音": "voice",
     "📄 文档": "documents",
     "📈 分析": "analysis"
 }
 
 from src.database.db_manager import get_db_manager
 from src.clients.ragflow_client import get_ragflow_client
-from src.services.whisper_client import get_whisper_client
+from src.clients.whisper_client import get_whisper_client
 from src.utils.logger import setup_logger
 
 # ===== 配置日志 =====
@@ -204,20 +203,33 @@ def show_sidebar():
         # 快速统计
         st.subheader("统计信息")
         try:
-            from src.database.policy_dao import get_policy_dao
-            dao = get_policy_dao()
-            stats = dao.get_stats()
-
+            from src.database.graph_dao import GraphDAO
+            
+            # 获取RAGFlow文档数
+            ragflow = get_ragflow_client()
+            kb_name = getattr(config, 'ragflow_kb_name', 'policy_demo_kb')
+            
             col1, col2 = st.columns(2)
-            with col1:
-                st.metric("总政策数", stats.get('total', 0))
-            with col2:
-                st.metric("已上传文件", stats.get('total', 0))
-
-            if 'by_type' in stats:
-                st.write("按类型分布:")
-                for policy_type, count in stats['by_type'].items():
-                    st.write(f"  - {policy_type}: {count}")
+            
+            # 显示RAGFlow文档数
+            if ragflow.check_health():
+                docs = ragflow.get_documents(kb_name)
+                with col1:
+                    st.metric("📄 文档数", len(docs))
+            else:
+                with col1:
+                    st.metric("📄 文档数", "N/A")
+            
+            # 显示图谱节点数
+            try:
+                db_path = config.data_dir / "database" / "policies.db"
+                graph_dao = GraphDAO(str(db_path))
+                graph_stats = graph_dao.get_stats()
+                with col2:
+                    st.metric("🕸️ 图谱节点", graph_stats.get('node_count', 0) if graph_stats else 0)
+            except Exception:
+                with col2:
+                    st.metric("🕸️ 图谱节点", 0)
 
         except Exception as e:
             logger.error(f"获取统计信息失败: {e}")
@@ -259,10 +271,10 @@ def show_home():
 
     features = {
         "🔍 政策搜索": "快速搜索和检索政策文档，支持多维度筛选",
+        "� 智能问答": "基于RAGFlow和Qwen的AI问答系统",
         "📊 知识图谱": "可视化展示政策之间的关系和依赖",
-        "🎤 语音问答": "通过语音提问，获取政策相关建议",
         "📄 文档管理": "上传和管理政策文档，自动提取元数据",
-        "📈 政策分析": "分析政策时效性和影响范围"
+        "📈 数据统计": "查看文档和图谱统计信息"
     }
 
     for feature, description in features.items():
@@ -273,11 +285,11 @@ def show_home():
     # 快速开始
     st.subheader("快速开始")
     st.markdown("""
-    1. **上传政策文档**：在"文档管理"页面上传政策文档
-    2. **搜索政策**：在"政策搜索"页面查找相关政策
-    3. **浏览图谱**：在"知识图谱"页面查看政策关系
-    4. **语音问答**：在"语音问答"页面提问获取建议
-    5. **数据分析**：在"政策分析"页面查看趋势和影响
+    1. **上传政策文档**：在"文档管理"页面上传政策文档到RAGFlow
+    2. **搜索政策**：在"搜索"页面查找相关政策
+    3. **智能问答**：在"聊天"页面与AI对话获取政策建议
+    4. **浏览图谱**：在"图谱"页面查看政策关系网络
+    5. **数据统计**：在"分析"页面查看文档和图谱统计
     """)
 
 
@@ -298,7 +310,7 @@ def main():
         selected_page = option_menu(
             menu_title="导航",
             options=list(PAGES.keys()),
-            icons=["house", "search", "diagram-2", "mic", "file-earmark", "bar-chart"],
+            icons=["house", "search", "chat", "diagram-2", "file-earmark", "bar-chart"],
             menu_icon="cast",
             default_index=0,
             orientation="vertical"
@@ -319,9 +331,6 @@ def main():
         elif "图谱" in selected_page:
             from src.pages.graph_page import show as show_graph_page
             show_graph_page()
-        elif "语音" in selected_page:
-            from src.pages.voice_page import show as show_voice_page
-            show_voice_page()
         elif "文档" in selected_page:
             from src.pages.documents_page import show as show_documents_page
             show_documents_page()

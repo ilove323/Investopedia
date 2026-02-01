@@ -21,7 +21,7 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from src.clients.ragflow_client import RAGFlowClient
-from src.clients.qwen_client import get_qwen_client
+from src.services.entity_extraction_service import get_entity_extraction_service
 from src.database.policy_dao import PolicyDAO
 from src.database.graph_dao import GraphDAO
 from src.business.metadata_extractor import MetadataExtractor
@@ -40,7 +40,7 @@ class DataSyncService:
             self.ragflow = RAGFlowClient()
             self.dao = PolicyDAO()
             self.graph_dao = None  # 延迟初始化
-            self.qwen = None  # 延迟初始化
+            self.entity_service = None  # 延迟初始化
             self.metadata_extractor = MetadataExtractor()
             self.tag_generator = TagGenerator()
             logger.info("数据同步服务初始化完成")
@@ -48,16 +48,16 @@ class DataSyncService:
             logger.error(f"数据同步服务初始化失败: {e}")
             raise
     
-    def _init_qwen_client(self):
-        """延迟初始化Qwen客户端"""
-        if self.qwen is None:
+    def _init_entity_service(self):
+        """延迟初始化实体抽取服务"""
+        if self.entity_service is None:
             try:
-                self.qwen = get_qwen_client()
-                logger.info("Qwen客户端初始化成功")
+                self.entity_service = get_entity_extraction_service()
+                logger.info("实体抽取服务初始化成功")
             except Exception as e:
-                logger.error(f"Qwen客户端初始化失败: {e}")
+                logger.error(f"实体抽取服务初始化失败: {e}")
                 raise
-        return self.qwen
+        return self.entity_service
     
     def _init_graph_dao(self):
         """延迟初始化GraphDAO"""
@@ -318,12 +318,12 @@ class DataSyncService:
                     'elapsed_time': f"{time.time() - start_time:.2f}秒"
                 }
             
-            # 步骤2: 使用Qwen提取实体和关系
+            # 步骤2: 使用实体抽取服务提取实体和关系
             if progress_callback:
-                progress_callback(2, 5, f"正在使用Qwen分析 {len(documents)} 个文档...")
+                progress_callback(2, 5, f"正在分析 {len(documents)} 个文档...")
             
-            # 初始化Qwen客户端
-            qwen = self._init_qwen_client()
+            # 初始化实体抽取服务
+            entity_service = self._init_entity_service()
             
             all_nodes = []
             all_edges = []
@@ -417,7 +417,7 @@ class DataSyncService:
     
     def _extract_entities_and_relations(self, text: str, doc_title: str) -> Tuple[List[Dict], List[Dict]]:
         """
-        使用Qwen大模型提取实体和关系
+        使用实体抽取服务提取实体和关系
         
         Args:
             text: 文档文本内容
@@ -426,16 +426,16 @@ class DataSyncService:
         Returns:
             (nodes, edges) 节点列表和边列表
         """
-        logger.info(f"使用Qwen提取实体: {doc_title}")
+        logger.info(f"提取实体: {doc_title}")
         
-        # 调用Qwen进行抽取
-        result = self.qwen.extract_entities_and_relations(text, doc_title)
+        # 调用实体抽取服务
+        result = self.entity_service.extract_from_document(text, doc_title)
         
         entities_data = result.get('entities', [])
         relations_data = result.get('relations', [])
         
         print(f"\n[DEBUG] 文档: {doc_title}")
-        print(f"[DEBUG] Qwen返回: {len(entities_data)}个实体, {len(relations_data)}个关系")
+        print(f"[DEBUG] 抽取结果: {len(entities_data)}个实体, {len(relations_data)}个关系")
         if entities_data:
             print(f"[DEBUG] 前5个实体: {[e.get('text') for e in entities_data[:5]]}")
         if relations_data:

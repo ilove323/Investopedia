@@ -36,48 +36,22 @@ def render_graph_controls() -> Dict[str, Any]:
         控制选项字典
     """
     with st.expander("🎮 图谱控制", expanded=True):
-        col1, col2, col3 = st.columns(3)
+        layout = st.selectbox(
+            "布局算法",
+            ["力导向", "圆形", "层级"],
+            index=0,
+            help="选择不同的图谱布局方式"
+        )
 
-        with col1:
-            view = st.selectbox(
-                "视图类型",
-                ["全局视图", "子图视图", "时间线视图"],
-                index=0
-            )
-
-        with col2:
-            layout = st.selectbox(
-                "布局算法",
-                ["力导向", "圆形", "层级"],
-                index=0
-            )
-
-        with col3:
-            physics = st.checkbox("物理引擎", value=True)
-
-        # 节点和边的过滤
-        col4, col5 = st.columns(2)
-
-        with col4:
-            show_node_types = st.multiselect(
-                "节点类型",
-                ["政策", "机构", "地区", "概念", "项目"],
-                default=["政策", "机构"]
-            )
-
-        with col5:
-            show_edges = st.multiselect(
-                "关系类型",
-                ["发布", "适用", "引用", "影响", "替代"],
-                default=["发布", "影响"]
-            )
+        physics = st.checkbox(
+            "启用物理引擎", 
+            value=True,
+            help="物理引擎会让节点动态调整位置，关闭后图谱保持静态"
+        )
 
         return {
-            'view': view,
             'layout': layout,
-            'physics': physics,
-            'node_types': show_node_types,
-            'edge_types': show_edges
+            'physics': physics
         }
 
 
@@ -153,13 +127,17 @@ def render_network_graph(graph: nx.Graph, title: str = "知识图谱") -> None:
         st.error(f"图谱渲染失败: {str(e)}")
 
 
-def render_network_graph_from_data(graph_data: dict, title: str = "知识图谱") -> None:
+def render_network_graph_from_data(graph_data: dict, title: str = "知识图谱", 
+                                    layout: str = "力导向",
+                                    physics_enabled: bool = True) -> None:
     """
     从Pyvis格式的字典数据渲染网络图
     
     Args:
         graph_data: 包含nodes和edges的字典 {'nodes': [...], 'edges': [...]}
         title: 图谱标题
+        layout: 布局算法（力导向、圆形、层级）
+        physics_enabled: 是否启用物理引擎
     """
     try:
         import streamlit.components.v1 as components
@@ -212,29 +190,77 @@ def render_network_graph_from_data(graph_data: dict, title: str = "知识图谱"
                     arrows='to'
                 )
         
-        # 配置物理引擎和交互选项
-        net.set_options("""
-        {
-            "physics": {
-                "enabled": true,
-                "stabilization": {
-                    "enabled": true,
-                    "iterations": 200
+        # 根据布局选择配置不同的选项
+        layout_config = {}
+        if layout == "圆形":
+            layout_config = {
+                "layout": {
+                    "randomSeed": 42,
+                    "improvedLayout": True,
+                    "hierarchical": {
+                        "enabled": False
+                    }
                 },
-                "barnesHut": {
-                    "gravitationalConstant": -30000,
-                    "centralGravity": 0.3,
-                    "springLength": 150,
-                    "springConstant": 0.04,
-                    "damping": 0.09
+                "physics": {
+                    "enabled": physics_enabled,
+                    "stabilization": {"enabled": True, "iterations": 100},
+                    "solver": "repulsion",
+                    "repulsion": {
+                        "nodeDistance": 200,
+                        "centralGravity": 0.0,
+                        "springLength": 200
+                    }
                 }
-            },
+            }
+        elif layout == "层级":
+            layout_config = {
+                "layout": {
+                    "randomSeed": 42,
+                    "improvedLayout": True,
+                    "hierarchical": {
+                        "enabled": True,
+                        "direction": "UD",
+                        "sortMethod": "directed",
+                        "levelSeparation": 150,
+                        "nodeSpacing": 150
+                    }
+                },
+                "physics": {
+                    "enabled": False
+                }
+            }
+        else:  # 力导向（默认）
+            layout_config = {
+                "layout": {
+                    "randomSeed": 42,
+                    "improvedLayout": True
+                },
+                "physics": {
+                    "enabled": physics_enabled,
+                    "stabilization": {
+                        "enabled": True,
+                        "iterations": 200
+                    },
+                    "barnesHut": {
+                        "gravitationalConstant": -30000,
+                        "centralGravity": 0.3,
+                        "springLength": 150,
+                        "springConstant": 0.04,
+                        "damping": 0.09
+                    }
+                }
+            }
+        
+        # 配置物理引擎和交互选项
+        import json
+        options = {
+            **layout_config,
             "interaction": {
-                "hover": true,
+                "hover": True,
                 "tooltipDelay": 100,
-                "hideEdgesOnDrag": false,
-                "navigationButtons": true,
-                "keyboard": true
+                "hideEdgesOnDrag": False,
+                "navigationButtons": True,
+                "keyboard": True
             },
             "nodes": {
                 "font": {
@@ -254,7 +280,7 @@ def render_network_graph_from_data(graph_data: dict, title: str = "知识图谱"
                 }
             }
         }
-        """)
+        net.set_options(json.dumps(options))
         
         # 保存为HTML
         with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:

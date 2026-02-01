@@ -26,7 +26,7 @@ from src.components.voice_ui import (
     render_voice_tips,
     render_voice_stats
 )
-from src.services.whisper_client import WhisperClient
+from src.clients.whisper_client import WhisperClient
 from src.services.api_utils import APIClient
 from src.database.policy_dao import PolicyDAO
 

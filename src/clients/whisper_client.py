@@ -25,7 +25,7 @@ Whisper服务客户端
 - audio_channels: 声道数
 
 使用示例：
-    from src.services.whisper_client import get_whisper_client
+    from src.clients.whisper_client import get_whisper_client
 
     client = get_whisper_client()
 
