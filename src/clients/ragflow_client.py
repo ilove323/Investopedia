@@ -217,7 +217,11 @@ class RAGFlowClient:
                         "prompt": {
                             "prompt": system_prompt,
                             "top_n": 8,
-                            "similarity_threshold": 0.2
+                            "similarity_threshold": 0.2,
+                            "variables": [
+                                {"key": "knowledge", "optional": True},
+                                {"key": "question", "optional": False}
+                            ]
                         }
                     })
                     logger.info("更新聊天助手的系统提示词")
@@ -233,7 +237,11 @@ class RAGFlowClient:
                         prompt=system_prompt,
                         top_n=8,
                         similarity_threshold=0.2,
-                        keywords_similarity_weight=0.7
+                        keywords_similarity_weight=0.7,
+                        variables=[
+                            {"key": "knowledge", "optional": True},
+                            {"key": "question", "optional": False}
+                        ]
                     )
 
                 chat_assistant = self.rag.create_chat(

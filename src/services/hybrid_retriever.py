@@ -3,7 +3,7 @@
 ===========================================
 
 核心思路：图谱粗筛 + 向量精排
-- 从查询中提取实体
+- 从查询中提取实体（使用大模型）
 - 在本地图谱中模糊匹配节点
 - 构建子图并提取相关政策的document_ids
 - 返回图谱上下文（用于增强prompt和可视化）
@@ -11,8 +11,11 @@
 import logging
 import re
 from typing import List, Dict, Any, Optional
+from pathlib import Path
 
 from src.models.graph import PolicyGraph, NodeType, GraphNode, GraphEdge, RelationType
+from src.clients.qwen_client import get_qwen_client
+from src.config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -74,19 +77,20 @@ class HybridRetriever:
                     # 尝试解析关系类型
                     rel_type_str = edge_data.get('type', edge_data.get('label', 'RELATED'))
                     try:
-                        rel_type = RelationType[rel_type_str]
+                        rel_type = RelationType[rel_type_str.upper().replace('包含', 'RELATES_TO').replace('发布', 'ISSUED_BY')]
                     except (KeyError, AttributeError):
-                        rel_type = RelationType.RELATED
+                        # 如果找不到匹配的类型，使用RELATES_TO作为默认值
+                        rel_type = RelationType.RELATES_TO
                     
                     edge = GraphEdge(
                         source_id=edge_data.get('from'),
                         target_id=edge_data.get('to'),
                         relation_type=rel_type,
-                        label=edge_data.get('label', rel_type.value)
+                        label=edge_data.get('label', edge_data.get('type', rel_type.value))
                     )
                     graph.add_edge(edge)
                 except Exception as e:
-                    logger.debug(f"跳过无效边: {e}")
+                    logger.warning(f"跳过无效边: {e}, edge_data={edge_data}")
                     continue
             
             logger.info(f"从数据库转换图谱: {graph.get_node_count()} 节点, {graph.get_edge_count()} 边")
@@ -217,32 +221,80 @@ class HybridRetriever:
     
     def _extract_entities_from_query(self, query: str) -> List[str]:
         """
-        从查询中提取实体
+        从查询中提取实体（使用大模型）
         
-        简单实现：分词 + 过滤常见词
-        高级实现：可以调用NER模型
+        调用Qwen大模型进行智能实体识别，
+        比传统分词更准确，能识别专业术语和复合概念
         """
-        # 提取中文词（2个字以上）
-        words = re.findall(r'[\u4e00-\u9fa5]{2,}', query)
+        try:
+            # 读取prompt模板
+            config = get_config()
+            prompt_path = config.project_root / "config" / "prompts" / "query_entity_extraction.txt"
+            
+            if not prompt_path.exists():
+                logger.warning(f"实体提取prompt不存在: {prompt_path}，使用简单分词")
+                return self._simple_entity_extraction(query)
+            
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                prompt_template = f.read()
+            
+            # 构建prompt
+            prompt = prompt_template.replace("{query}", query)
+            
+            # 调用Qwen（使用generate方法，传入messages格式）
+            qwen_client = get_qwen_client()
+            response = qwen_client.generate(
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=200,
+                temperature=0.1
+            )
+            
+            # 解析返回的实体列表（逗号分隔）
+            if response and response.strip():
+                entities = [e.strip() for e in response.split(',') if e.strip()]
+                logger.info(f"大模型提取到实体: {entities}")
+                return entities
+            else:
+                logger.warning("大模型返回空结果，使用简单分词")
+                return self._simple_entity_extraction(query)
+                
+        except Exception as e:
+            logger.error(f"大模型实体提取失败: {e}，回退到简单分词")
+            return self._simple_entity_extraction(query)
+    
+    def _simple_entity_extraction(self, query: str) -> List[str]:
+        """
+        简单分词（回退方案）
+        当大模型不可用时使用
+        """
+        # 提取2-6个字的中文词组
+        words = []
+        for i in range(len(query)):
+            for j in range(2, 7):
+                if i + j <= len(query):
+                    word = query[i:i+j]
+                    if re.match(r'^[\u4e00-\u9fa5]+$', word):
+                        words.append(word)
         
         # 过滤停用词
         stopwords = {
             '的', '有', '是', '对', '和', '与', '在', '了', '吗', '呢', 
             '什么', '如何', '怎么', '为什么', '哪些', '可以', '需要', 
             '应该', '能否', '关于', '这个', '那个', '这些', '那些',
-            '我们', '你们', '他们', '我的', '你的', '他的'
+            '我们', '你们', '他们', '我的', '你的', '他的', '包括',
+            '内容', '知道', '应当', '那些'
         }
         entities = [w for w in words if w not in stopwords and len(w) >= 2]
         
-        # 去重并保持顺序
+        # 去重
         seen = set()
-        unique_entities = []
-        for entity in entities:
-            if entity not in seen:
-                seen.add(entity)
-                unique_entities.append(entity)
+        unique = []
+        for e in entities:
+            if e not in seen:
+                seen.add(e)
+                unique.append(e)
         
-        return unique_entities
+        return unique[:10]  # 限制数量
     
     def _extract_document_ids_from_subgraph(self, subgraph: PolicyGraph) -> List[str]:
         """
