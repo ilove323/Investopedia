@@ -11,14 +11,25 @@
 - 知识图谱可视化
 - 多轮对话支持
 - 会话管理
+- 语音输入（实时录音）
 """
 import streamlit as st
 import logging
 import re
 import hashlib
+import tempfile
+from pathlib import Path
+
+try:
+    from audio_recorder_streamlit import audio_recorder
+    AUDIO_RECORDER_AVAILABLE = True
+except ImportError:
+    AUDIO_RECORDER_AVAILABLE = False
+    logging.warning("audio_recorder_streamlit未安装，语音功能不可用")
 
 from src.services.chat_service import get_chat_service
 from src.components.graph_ui import render_network_graph
+from src.clients.whisper_client import get_whisper_client
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +115,10 @@ def show():
         st.session_state.chat_history = []
     if 'chat_session_id' not in st.session_state:
         st.session_state.chat_session_id = None
+    if 'last_audio_bytes' not in st.session_state:
+        st.session_state.last_audio_bytes = None
+    if 'pending_voice_input' not in st.session_state:
+        st.session_state.pending_voice_input = False
     
     # ===== 顶部控制栏 =====
     col1, col2, col3 = st.columns([8, 1, 1])
@@ -132,6 +147,67 @@ def show():
     
     # ===== 分隔线 =====
     st.divider()
+    
+    # ===== 处理待处理的语音输入 =====
+    user_input = None
+    if st.session_state.pending_voice_input:
+        st.session_state.pending_voice_input = False
+        
+        with st.spinner("正在识别语音..."):
+            try:
+                # 保存音频到临时文件
+                audio_bytes = st.session_state.last_audio_bytes
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
+                    tmp_file.write(audio_bytes)
+                    tmp_path = tmp_file.name
+                
+                # 调用Whisper转写
+                whisper_client = get_whisper_client()
+                result = whisper_client.transcribe(
+                    tmp_path,
+                    task='transcribe',
+                    language='zh'
+                )
+                
+                # 清理临时文件
+                Path(tmp_path).unlink()
+                
+                # 提取文本（只要text字段的纯文本）
+                recognized_text = None
+                if result:
+                    if isinstance(result, dict):
+                        # 从JSON中提取text字段
+                        recognized_text = result.get('text', '')
+                    elif isinstance(result, str):
+                        # 如果是字符串，尝试解析JSON
+                        try:
+                            import json
+                            data = json.loads(result)
+                            recognized_text = data.get('text', result)
+                        except:
+                            # 如果不是JSON，直接使用字符串
+                            recognized_text = result
+                    
+                    # 清理空白字符
+                    if recognized_text:
+                        recognized_text = recognized_text.strip()
+                
+                if recognized_text:
+                    # 只显示纯文本内容
+                    st.success(f"✅ 识别结果: {recognized_text}")
+                    # 将语音识别结果直接添加到聊天历史
+                    st.session_state.chat_history.append({
+                        'role': 'user',
+                        'content': recognized_text
+                    })
+                    # 触发重新运行以显示对话
+                    st.rerun()
+                else:
+                    st.warning("未识别到有效文本")
+            
+            except Exception as e:
+                logger.error(f"语音识别失败: {e}")
+                st.error(f"语音识别失败: {str(e)}")
     
     # ===== 显示聊天历史 =====
     for idx, msg in enumerate(st.session_state.chat_history):
@@ -185,7 +261,7 @@ def show():
                         
                         with col2:
                             # 下载按钮（获取完整文档）
-                            if st.button("📥", key=f"download_doc_{chunk_id}", 
+                            if st.button("📥", key=f"download_doc_{idx}_{chunk_id}", 
                                        help="下载完整文档"):
                                 try:
                                     from src.clients.ragflow_client import RAGFlowClient
@@ -202,7 +278,7 @@ def show():
                                                 data=content,
                                                 file_name=doc_name,
                                                 mime="application/octet-stream",
-                                                key=f"save_{chunk_id}"
+                                                key=f"save_{idx}_{chunk_id}"
                                             )
                                         else:
                                             st.error("文档未找到")
@@ -256,17 +332,12 @@ def show():
                         except Exception as e:
                             st.error(f"图谱可视化失败: {e}")
     
-    # ===== 聊天输入框 =====
-    if prompt := st.chat_input("请输入您的问题...", key="chat_input"):
-        # 添加用户消息到历史
-        st.session_state.chat_history.append({
-            'role': 'user',
-            'content': prompt
-        })
+    # ===== 检查是否有待回答的用户消息 =====
+    if (len(st.session_state.chat_history) > 0 and 
+        st.session_state.chat_history[-1]['role'] == 'user'):
         
-        # 显示用户消息
-        with st.chat_message("user"):
-            st.markdown(prompt)
+        # 获取最后一条用户消息
+        prompt = st.session_state.chat_history[-1]['content']
         
         # ===== 调用ChatService，流式显示回答 =====
         with st.chat_message("assistant"):
@@ -383,11 +454,45 @@ def show():
             'graph_context': graph_context
         })
     
+    # ===== 输入区（页面底部） =====
+    st.divider()
+    
+    col_input, col_voice = st.columns([5, 1])
+    
+    with col_input:
+        text_input = st.chat_input("请输入您的问题...", key="chat_input")
+    
+    with col_voice:
+        if AUDIO_RECORDER_AVAILABLE:
+            st.caption("🎤 语音")
+            audio_bytes = audio_recorder(
+                text="",
+                recording_color="#e74c3c",
+                neutral_color="#6aa36f",
+                icon_size="2x",
+                key="voice_input"
+            )
+            
+            if audio_bytes and audio_bytes != st.session_state.get('last_audio_bytes'):
+                st.session_state.last_audio_bytes = audio_bytes
+                st.session_state.pending_voice_input = True
+                st.rerun()
+        else:
+            st.caption("⚠️ 语音不可用")
+    
+    # 处理文字输入
+    if text_input and not user_input:
+        st.session_state.chat_history.append({
+            'role': 'user',
+            'content': text_input
+        })
+        st.rerun()
+    
     # ===== 页面底部提示 =====
     if len(st.session_state.chat_history) == 0:
         st.info(
             "💡 **使用提示**\n\n"
-            "• 输入政策相关问题，系统会结合文档和知识图谱为您解答\n"
+            "• 输入政策相关问题，或点击🎤录音提问\n"
             "• 答案中的蓝色数字 [1,2] 可点击跳转到对应参考文档\n"
             "• 点击折叠面板可查看参考文档和知识图谱\n"
             "• 支持多轮对话，上下文会自动保持\n"

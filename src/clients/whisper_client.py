@@ -189,15 +189,23 @@ class WhisperClient:
                     headers=self.headers
                 )
 
-                # 包装文本响应为JSON格式
-                processed_response = {
-                    "text": response_text,
-                    "language": language,
-                    "task": task,
-                    "segments": []
-                }
-                logger.info(f"音频转写成功: {file_path.name}")
-                return processed_response
+                # 尝试解析为JSON（如果Whisper返回JSON格式）
+                try:
+                    import json
+                    response_data = json.loads(response_text)
+                    # 如果成功解析，直接返回
+                    logger.info(f"音频转写成功: {file_path.name}")
+                    return response_data
+                except json.JSONDecodeError:
+                    # 如果不是JSON，包装为标准格式
+                    processed_response = {
+                        "text": response_text,
+                        "language": language,
+                        "task": task,
+                        "segments": []
+                    }
+                    logger.info(f"音频转写成功: {file_path.name}")
+                    return processed_response
 
         except APIError as e:
             logger.error(f"转写失败: {e}")

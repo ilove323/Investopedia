@@ -1,6 +1,7 @@
 # 核心Web框架
 streamlit>=1.40.0
 streamlit-option-menu>=0.3.13
+audio-recorder-streamlit>=0.0.10
 
 # API和HTTP
 requests>=2.32.0
