@@ -255,14 +255,54 @@ def show_home():
 
     col1, col2, col3 = st.columns(3)
 
-    with col1:
-        st.metric("已加载政策", 0)
+    # 获取实际数据
+    try:
+        config = get_config()
+        kb_name = getattr(config, 'ragflow_kb_name', 'policy_demo_kb')
+        
+        # RAGFlow文档数
+        doc_count = 0
+        try:
+            ragflow = get_ragflow_client()
+            if ragflow.check_health():
+                docs = ragflow.get_documents(kb_name)
+                doc_count = len(docs)
+        except Exception as e:
+            logger.debug(f"获取文档数失败: {e}")
+        
+        # 图谱节点数
+        node_count = 0
+        try:
+            from src.database.graph_dao import GraphDAO
+            db_path = config.data_dir / "database" / "policies.db"
+            graph_dao = GraphDAO(str(db_path))
+            graph_stats = graph_dao.get_stats()
+            if graph_stats:
+                node_count = graph_stats.get('node_count', 0)
+        except Exception as e:
+            logger.debug(f"获取图谱节点数失败: {e}")
+        
+        with col1:
+            st.metric("📄 RAGFlow文档", doc_count)
 
-    with col2:
-        st.metric("知识图谱节点", 0)
+        with col2:
+            st.metric("🕸️ 知识图谱节点", node_count)
 
-    with col3:
-        st.metric("已标记标签", 0)
+        with col3:
+            # 关系数替代标签数（因为没有标签功能）
+            edge_count = 0
+            if graph_stats:
+                edge_count = graph_stats.get('edge_count', 0)
+            st.metric("🔗 图谱关系", edge_count)
+    
+    except Exception as e:
+        logger.error(f"获取首页统计数据失败: {e}")
+        with col1:
+            st.metric("📄 文档", "N/A")
+        with col2:
+            st.metric("🕸️ 节点", "N/A")
+        with col3:
+            st.metric("🔗 关系", "N/A")
 
     st.divider()
 
