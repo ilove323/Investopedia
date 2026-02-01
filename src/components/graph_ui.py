@@ -153,6 +153,137 @@ def render_network_graph(graph: nx.Graph, title: str = "知识图谱") -> None:
         st.error(f"图谱渲染失败: {str(e)}")
 
 
+def render_network_graph_from_data(graph_data: dict, title: str = "知识图谱") -> None:
+    """
+    从Pyvis格式的字典数据渲染网络图
+    
+    Args:
+        graph_data: 包含nodes和edges的字典 {'nodes': [...], 'edges': [...]}
+        title: 图谱标题
+    """
+    try:
+        import streamlit.components.v1 as components
+        
+        nodes = graph_data.get('nodes', [])
+        edges = graph_data.get('edges', [])
+        
+        # 检查数据是否为空
+        if not nodes:
+            st.warning("🔍 图谱为空，请先构建知识图谱")
+            return
+        
+        # 创建Pyvis网络
+        net = Network(
+            height="600px",
+            width="100%",
+            directed=True,
+            notebook=False
+        )
+        
+        # 添加节点（使用数据库中的可视化属性）
+        for node in nodes:
+            node_id = node.get('id')
+            label = node.get('label', node_id)
+            title_text = node.get('title', label)
+            size = node.get('size', 20)
+            color = node.get('color', '#97C2FC')
+            
+            net.add_node(
+                node_id,
+                label=label,
+                title=title_text,
+                size=size,
+                color=color
+            )
+        
+        # 添加边
+        for edge in edges:
+            from_id = edge.get('from')
+            to_id = edge.get('to')
+            edge_label = edge.get('label', '')
+            
+            # 检查节点是否存在
+            if from_id and to_id:
+                net.add_edge(
+                    from_id,
+                    to_id,
+                    label=edge_label,
+                    title=edge_label,
+                    arrows='to'
+                )
+        
+        # 配置物理引擎和交互选项
+        net.set_options("""
+        {
+            "physics": {
+                "enabled": true,
+                "stabilization": {
+                    "enabled": true,
+                    "iterations": 200
+                },
+                "barnesHut": {
+                    "gravitationalConstant": -30000,
+                    "centralGravity": 0.3,
+                    "springLength": 150,
+                    "springConstant": 0.04,
+                    "damping": 0.09
+                }
+            },
+            "interaction": {
+                "hover": true,
+                "tooltipDelay": 100,
+                "hideEdgesOnDrag": false,
+                "navigationButtons": true,
+                "keyboard": true
+            },
+            "nodes": {
+                "font": {
+                    "size": 16,
+                    "face": "Arial"
+                },
+                "borderWidth": 2,
+                "borderWidthSelected": 4
+            },
+            "edges": {
+                "font": {
+                    "size": 12,
+                    "align": "middle"
+                },
+                "smooth": {
+                    "type": "continuous"
+                }
+            }
+        }
+        """)
+        
+        # 保存为HTML
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as f:
+            net.save_graph(f.name)
+            temp_path = f.name
+        
+        # 在Streamlit中显示
+        try:
+            with open(temp_path, 'r', encoding='utf-8') as f:
+                html_string = f.read()
+            
+            components.html(html_string, height=650, scrolling=True)
+            
+            # 显示图谱信息
+            st.caption(f"📊 图谱包含 {len(nodes)} 个节点和 {len(edges)} 条边")
+            
+        finally:
+            # 清理临时文件
+            try:
+                Path(temp_path).unlink()
+            except:
+                pass
+    
+    except Exception as e:
+        st.error(f"图谱渲染失败: {str(e)}")
+        import traceback
+        st.error(traceback.format_exc())
+
+
 def render_graph_stats(stats: Dict[str, Any]) -> None:
     """
     渲染图谱统计信息

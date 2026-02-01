@@ -21,6 +21,7 @@ import networkx as nx
 from src.components.graph_ui import (
     render_graph_controls,
     render_network_graph,
+    render_network_graph_from_data,
     render_graph_stats,
     render_node_details,
     render_edge_details,
@@ -178,29 +179,29 @@ def show():
 
     with col_main:
         # 图谱统计
-        if st.session_state.graph and st.session_state.graph.get_node_count() > 0:
-            render_graph_stats(st.session_state.graph.get_stats())
+        if st.session_state.graph:
+            node_count = len(st.session_state.graph.get('nodes', []))
+            edge_count = len(st.session_state.graph.get('edges', []))
+            
+            if node_count > 0:
+                # 显示基本统计
+                stats = {
+                    'node_count': node_count,
+                    'edge_count': edge_count,
+                    'density': 0,
+                    'number_of_connected_components': 0,
+                    'diameter': None
+                }
+                render_graph_stats(stats)
         else:
             st.info("📊 图谱统计信息将在添加数据后显示")
 
         st.divider()
 
-        # 应用过滤和搜索
-        filtered_graph = apply_filters_and_search(
-            st.session_state.graph,
-            node_filter,
-            search_query,
-            controls.get('node_types', []),
-            controls.get('edge_types', [])
-        )
-
-        # 处理路径查询
-        if path_params.get('find_path') and path_params.get('source') and path_params.get('target'):
-            display_shortest_path(filtered_graph, path_params['source'], path_params['target'])
-
         # 主图谱显示
-        if filtered_graph and filtered_graph.get_node_count() > 0:
-            render_network_graph(filtered_graph.get_nx_graph())
+        if st.session_state.graph and len(st.session_state.graph.get('nodes', [])) > 0:
+            # 直接使用Pyvis渲染原始图谱数据
+            render_network_graph_from_data(st.session_state.graph)
         else:
             st.warning("🔍 图谱为空或尚未构建")
             st.info("""
@@ -219,12 +220,12 @@ def show():
 
         st.divider()
 
-        # 节点详情
-        if st.session_state.selected_node:
-            st.subheader("节点详情")
-            node = st.session_state.graph.get_node(st.session_state.selected_node)
-            if node:
-                render_node_details(node)
+        # 节点详情 - 暂时禁用，因为需要重构
+        # if st.session_state.selected_node:
+        #     st.subheader("节点详情")
+        #     node = st.session_state.graph.get_node(st.session_state.selected_node)
+        #     if node:
+        #         render_node_details(node)
 
         # 边详情
         st.subheader("关系详情")
@@ -232,7 +233,7 @@ def show():
 
 
 def load_graph_from_database():
-    """从数据库加载知识图谱"""
+    """从数据库加载知识图谱（直接使用Pyvis格式）"""
     try:
         config = get_config()
         db_path = config.data_dir / "database" / "policies.db"
@@ -241,69 +242,17 @@ def load_graph_from_database():
         
         if not graph_data:
             logger.info("数据库中没有图谱数据")
-            return PolicyGraph()
+            return None
         
-        # 将graph_data转换为PolicyGraph对象
-        graph = PolicyGraph()
+        logger.info(f"从数据库加载Pyvis格式图谱: {len(graph_data.get('nodes', []))}个节点, {len(graph_data.get('edges', []))}条边")
         
-        # 添加节点
-        nodes = graph_data.get('nodes', [])
-        for node_data in nodes:
-            try:
-                # 将字符串类型转换为NodeType枚举
-                node_type_str = node_data.get('type', 'POLICY')
-                try:
-                    node_type = NodeType[node_type_str.upper()]
-                except (KeyError, AttributeError):
-                    node_type = NodeType.POLICY
-                
-                node = GraphNode(
-                    node_id=node_data.get('id'),
-                    label=node_data.get('label', ''),
-                    node_type=node_type,
-                    attributes=node_data.get('attributes', {})
-                )
-                graph.add_node(node)
-            except Exception as e:
-                logger.warning(f"添加节点失败 {node_data.get('id')}: {e}")
-        
-        # 添加边
-        edges = graph_data.get('edges', [])
-        print(f"\n[DEBUG] 加载 {len(edges)} 条边到前端图谱")
-        added_edges = 0
-        for edge_data in edges:
-            try:
-                # 尝试从type字段或relation字段获取关系类型
-                relation_type_str = edge_data.get('type') or edge_data.get('relation', 'RELATED_TO')
-                
-                # 尝试将关系类型转换为枚举
-                try:
-                    relation_type = RelationType[relation_type_str.upper().replace(' ', '_')]
-                except (KeyError, AttributeError, ValueError):
-                    # 如果不是标准的RelationType，使用RELATES_TO
-                    relation_type = RelationType.RELATES_TO
-                
-                edge = GraphEdge(
-                    source_id=edge_data.get('from'),
-                    target_id=edge_data.get('to'),
-                    relation_type=relation_type,
-                    label=edge_data.get('label', ''),
-                    attributes=edge_data.get('attributes', {})
-                )
-                
-                if graph.add_edge(edge):
-                    added_edges += 1
-            except Exception as e:
-                logger.warning(f"添加边失败 {edge_data.get('from')}->{edge_data.get('to')}: {e}")
-        
-        print(f"[DEBUG] 成功添加 {added_edges}/{len(edges)} 条边")
-        
-        logger.info(f"从数据库加载图谱: {graph.get_node_count()}个节点, {len(edges)}条边")
-        return graph
+        # 直接返回原始的Pyvis格式数据，不转换为PolicyGraph
+        # 因为数据已经是可视化格式（包含title, size, color等属性）
+        return graph_data
         
     except Exception as e:
         logger.error(f"从数据库加载图谱失败: {e}")
-        return PolicyGraph()
+        return None
 
 
 def render_edge_details_section():
