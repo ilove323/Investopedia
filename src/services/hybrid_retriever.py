@@ -12,7 +12,7 @@ import logging
 import re
 from typing import List, Dict, Any, Optional
 
-from src.models.graph import PolicyGraph, NodeType
+from src.models.graph import PolicyGraph, NodeType, GraphNode, GraphEdge, RelationType
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,79 @@ class HybridRetriever:
     
     def __init__(self):
         self.graph = None
+    
+    def _load_graph_from_database(self) -> Optional[PolicyGraph]:
+        """从数据库加载知识图谱并转换为PolicyGraph对象"""
+        try:
+            from src.database.graph_dao import GraphDAO
+            from src.config import get_config
+            
+            config = get_config()
+            db_path = config.data_dir / "database" / "policies.db"
+            graph_dao = GraphDAO(str(db_path))
+            graph_data = graph_dao.load_graph()
+            
+            if not graph_data:
+                logger.warning("数据库中没有图谱数据")
+                return None
+            
+            # 将数据库格式转换为PolicyGraph
+            graph = PolicyGraph()
+            
+            # 添加节点
+            for node_data in graph_data.get('nodes', []):
+                from src.models.graph import GraphNode, NodeType
+                try:
+                    # 尝试解析节点类型
+                    node_type_str = node_data.get('type', 'UNKNOWN')
+                    try:
+                        node_type = NodeType[node_type_str]
+                    except (KeyError, AttributeError):
+                        node_type = NodeType.CONCEPT
+                    
+                    node = GraphNode(
+                        node_id=node_data.get('id'),
+                        label=node_data.get('label', node_data.get('title', 'Unknown')),
+                        node_type=node_type,
+                        attributes={
+                            'document_id': node_data.get('document_id'),
+                            'policy_id': node_data.get('policy_id'),
+                            'description': node_data.get('description', '')
+                        }
+                    )
+                    graph.add_node(node)
+                except Exception as e:
+                    logger.debug(f"跳过无效节点: {e}")
+                    continue
+            
+            # 添加边
+            for edge_data in graph_data.get('edges', []):
+                from src.models.graph import GraphEdge, RelationType
+                try:
+                    # 尝试解析关系类型
+                    rel_type_str = edge_data.get('type', edge_data.get('label', 'RELATED'))
+                    try:
+                        rel_type = RelationType[rel_type_str]
+                    except (KeyError, AttributeError):
+                        rel_type = RelationType.RELATED
+                    
+                    edge = GraphEdge(
+                        source_id=edge_data.get('from'),
+                        target_id=edge_data.get('to'),
+                        relation_type=rel_type,
+                        label=edge_data.get('label', rel_type.value)
+                    )
+                    graph.add_edge(edge)
+                except Exception as e:
+                    logger.debug(f"跳过无效边: {e}")
+                    continue
+            
+            logger.info(f"从数据库转换图谱: {graph.get_node_count()} 节点, {graph.get_edge_count()} 边")
+            return graph
+            
+        except Exception as e:
+            logger.error(f"从数据库加载图谱失败: {e}")
+            return None
     
     def initialize_graph(self):
         """
@@ -42,10 +115,9 @@ class HybridRetriever:
             except:
                 pass
             
-            # 如果缓存不存在，则构建新图谱（仅首次或缓存失效时）
-            from src.pages.graph_page import build_policy_graph
-            logger.warning("⚠️ 缓存不存在，正在构建知识图谱（可能较慢）...")
-            self.graph = build_policy_graph()
+            # 如果缓存不存在，则从数据库加载图谱（仅首次或缓存失效时）
+            logger.warning("⚠️ 缓存不存在，正在从数据库加载知识图谱...")
+            self.graph = self._load_graph_from_database()
             if self.graph:
                 logger.info(f"知识图谱已加载: {self.graph.get_node_count()} 个节点")
                 # 缓存到session_state供后续使用

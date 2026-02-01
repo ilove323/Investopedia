@@ -230,8 +230,11 @@ def show():
             # 自动加载图谱（如果还未加载）
             if st.session_state.full_graph is None:
                 with st.spinner("正在加载知识图谱..."):
-                    from src.pages.graph_page import build_policy_graph
-                    st.session_state.full_graph = build_policy_graph()
+                    # 从数据库加载图谱
+                    from src.services.hybrid_retriever import get_hybrid_retriever
+                    retriever = get_hybrid_retriever()
+                    retriever.initialize_graph()
+                    st.session_state.full_graph = retriever.graph
             
             # 添加到搜索历史
             st.session_state.search_history.append({
