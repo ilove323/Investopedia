@@ -32,13 +32,15 @@ RAGFlow是一个基于深度文档理解的RAG（Retrieval-Augmented Generation�
 ### 在本系统中的作用
 
 ```
-用户上传PDF → RAGFlow解析 → 向量化存储 → 语义检索 → 智能问答
-                    ↓
-              提取关键信息
-                    ↓
-           Qwen大模型实体抽取
-                    ↓
-              构建知识图谱
+用户上传PDF → RAGFlow解析 → 向量化存储 → 知识图谱构建
+                                        ↓
+                               混合检索（图谱粗筛 + RAGFlow向量精排）
+                                        ↓
+                         问题增强（注入图谱关系） + RAGFlow检索
+                                        ↓
+                          LLM（使用{question}和{knowledge}变量）
+                                        ↓
+                                   智能问答
 ```
 
 ---
@@ -54,10 +56,17 @@ RAGFlow是一个基于深度文档理解的RAG（Retrieval-Augmented Generation�
 └───────────────┬─────────────────────────┘
                 │
 ┌───────────────▼─────────────────────────┐
+│      ChatService (业务层)               │
+│  - 混合检索 (HybridRetriever)           │
+│  - 问题增强 (注入图谱关系)               │
+│  - 变量配置 ({question}, {knowledge})   │
+└───────────────┬─────────────────────────┘
+                │
+┌───────────────▼─────────────────────────┐
 │      RAGFlowClient (服务层)             │
 │  - 文档管理 (upload, delete, list)      │
-│  - 语义搜索 (search)                     │
-│  - 智能问答 (chat)                       │
+│  - Chat Assistant管理 (配置variables)   │
+│  - Session管理 (ask接口)                │
 │  - 健康检查 (health_check)               │
 └───────────────┬─────────────────────────┘
                 │
@@ -414,6 +423,154 @@ for chunk in client.chat(
     stream=True
 ):
     print(chunk['delta'], end='', flush=True)
+```
+
+### 5. Chat Assistant与变量配置
+
+#### 5.1 变量机制
+
+RAGFlow在调用LLM时自动注入系统变量到System Prompt中：
+
+| 变量 | 说明 | 是否必填 | 数据来源 |
+|------|------|----------|----------|
+| `{question}` | 用户问题 | 是 | `session.ask(question=...)` |
+| `{knowledge}` | 检索内容 | 否 | RAGFlow向量检索结果 |
+
+#### 5.2 变量配置代码
+
+**创建Chat Assistant时配置**：
+```python
+from ragflow_sdk import Chat
+
+# 构建Prompt配置
+prompt_config = Chat.Prompt(
+    prompt=system_prompt,  # System Prompt文本
+    top_n=8,
+    similarity_threshold=0.2,
+    keywords_similarity_weight=0.7,
+    variables=[
+        {"key": "knowledge", "optional": True},
+        {"key": "question", "optional": False}  # 必须配置！
+    ]
+)
+
+# 创建Assistant
+chat_assistant = rag.create_chat(
+    name="政策聊天助手",
+    dataset_ids=[dataset_id],
+    prompt=prompt_config
+)
+```
+
+**更新Assistant时配置**：
+```python
+chat_assistant.update({
+    "prompt": {
+        "prompt": system_prompt,
+        "top_n": 8,
+        "similarity_threshold": 0.2,
+        "variables": [
+            {"key": "knowledge", "optional": True},
+            {"key": "question", "optional": False}
+        ]
+    }
+})
+```
+
+#### 5.3 System Prompt示例
+
+**文件**: `config/prompts/ragflow_chat_system_prompt.txt`
+
+```
+你是专业的政策法规智能助手。请基于 {knowledge} 中的政策文档内容回答用户问题 {question}。
+
+【核心要求】
+1. 严格基于 {knowledge} 回答，不要编造信息
+2. {question} 可能包含知识图谱关系（格式：实体A → 关系 → 实体B），优先覆盖图谱中的实体
+3. 使用结构化格式：加粗核心要点，编号列表，引用文档名称
+
+【回答格式】
+**政策依据**：相关政策文件（从 {knowledge} 获取 document_name）
+**核心要点**：
+1. 要点一：具体内容（引用 {knowledge} 中的 content）
+2. 要点二：...
+
+保持专业、客观、实用。
+```
+
+#### 5.4 混合检索增强流程
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ 1. 用户提问："特许经营合同包括什么内容？"               │
+└────────────────────┬────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────┐
+│ 2. Python代码（HybridRetriever）                        │
+│    - Qwen大模型提取实体：['特许经营', '合同']           │
+│    - 知识图谱检索：查找相关节点和关系                    │
+│    - 提取15条图谱关系                                    │
+└────────────────────┬────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────┐
+│ 3. 构建增强问题（ChatService._build_enhanced_question） │
+│                                                          │
+│    特许经营合同包括什么内容？                            │
+│    [知识图谱关系]                                        │
+│    • 商业特许经营管理条例 → relates_to → 特许人          │
+│    • 商业特许经营管理条例 → relates_to → 被特许人        │
+│    • 商业特许经营管理条例 → relates_to → 信息披露制度    │
+└────────────────────┬────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────┐
+│ 4. 调用RAGFlow API                                       │
+│    session.ask(question=增强问题, stream=True)           │
+└────────────────────┬────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────┐
+│ 5. RAGFlow处理                                           │
+│    - 向量检索知识库                                      │
+│    - 检索到相关chunks → 赋值给 {knowledge}               │
+│    - 增强问题 → 赋值给 {question}                        │
+└────────────────────┬────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────┐
+│ 6. 渲染System Prompt                                     │
+│    - 将 {question} 替换为增强问题（含图谱关系）          │
+│    - 将 {knowledge} 替换为检索到的文档内容               │
+│    - 发送完整Prompt给LLM                                 │
+└────────────────────┬────────────────────────────────────┘
+                     │
+┌────────────────────▼────────────────────────────────────┐
+│ 7. LLM生成回答                                           │
+│    - 理解图谱关系中的实体                                │
+│    - 基于 {knowledge} 准确回答                           │
+│    - 覆盖"特许人"、"被特许人"、"信息披露"等概念          │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### 5.5 错误处理
+
+**错误：'Miss parameter: question'**
+
+原因：创建/更新Assistant时未配置 `variables`
+
+```python
+# ❌ 错误：缺少variables配置
+prompt_config = Chat.Prompt(
+    prompt=system_prompt,
+    top_n=8
+)
+
+# ✅ 正确：包含variables配置
+prompt_config = Chat.Prompt(
+    prompt=system_prompt,
+    top_n=8,
+    variables=[
+        {"key": "knowledge", "optional": True},
+        {"key": "question", "optional": False}
+    ]
+)
 ```
 
 ---
