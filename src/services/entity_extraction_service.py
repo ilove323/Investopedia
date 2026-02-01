@@ -38,16 +38,23 @@ logger = logging.getLogger(__name__)
 class EntityExtractionService:
     """实体抽取业务服务"""
     
-    def __init__(self, prompt_file: str = "config/prompts/entity_extraction.txt"):
+    def __init__(self, 
+                 prompt_file: str = "config/prompts/entity_extraction.txt",
+                 max_text_length: int = 32000):
         """
         初始化实体抽取服务
         
         Args:
             prompt_file: 提示词模板文件路径
+            max_text_length: 最大文本长度限制（字符数）
+                - 32000: 默认值，平衡成本和效果（约64页A4纸）
+                - 64000: 超长文档模式（约128页A4纸）
+                - 0: 不限制（完整文档，可能很贵！）
         """
         self.qwen_client = get_qwen_client()
         self.prompt_file = Path(prompt_file)
         self.system_prompt = self._load_prompt_template()
+        self.max_text_length = max_text_length
     
     def _load_prompt_template(self) -> str:
         """加载提示词模板"""
@@ -110,10 +117,21 @@ class EntityExtractionService:
     
     def _build_user_prompt(self, text: str, doc_title: str) -> str:
         """构建用户提示词"""
-        # 截断过长文本
-        max_length = 3000
-        if len(text) > max_length:
-            text = text[:max_length] + "\n...[文本过长，已截断]"
+        # 使用配置的文本长度限制
+        max_length = self.max_text_length
+        
+        # 如果设置为0，表示不限制长度（完整发送）
+        if max_length == 0:
+            logger.info(f"🚀 完整文档模式：{len(text)} 字符，无截断")
+        elif len(text) > max_length:
+            # 智能截断策略：头部70% + 尾部30%
+            # 头部包含更多信息（标题、背景、主要条款）
+            head = text[:int(max_length * 0.7)]
+            tail = text[-int(max_length * 0.3):]
+            truncated_chars = len(text) - max_length
+            text = head + f"\n\n...【已省略{truncated_chars}字符，约{truncated_chars//500}页内容】...\n\n" + tail
+            logger.info(f"📄 文档已截断：{len(text)+truncated_chars} → {max_length} 字符")
+            text = head + f"\n\n...【已省略{truncated_chars}字符，约{truncated_chars//500}页内容】...\n\n" + tail
         
         user_prompt = f"""
 **文档标题**: {doc_title}

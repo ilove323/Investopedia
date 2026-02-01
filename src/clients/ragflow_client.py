@@ -13,6 +13,14 @@ RAGFlow服务客户端
 
 本模块使用官方RAGFlow SDK实现所有功能，不再使用自定义HTTP客户端。
 
+🔗 RAGFlow API文档：
+- Python API参考: https://ragflow.com.cn/docs/python_api_reference
+- HTTP API参考: https://ragflow.com.cn/docs/http_api_reference
+
+📦 API类型说明：
+本模块**完全使用Python SDK API**，所有方法都基于ragflow-sdk包。
+SDK内部会自动处理HTTP请求，开发者无需关心底层HTTP通信细节。
+
 依赖：
 - ragflow_sdk - RAGFlow官方Python SDK
 - src.config.ConfigLoader - RAGFlow服务配置
@@ -88,6 +96,9 @@ class RAGFlowClient:
 
     def _get_or_create_dataset(self, kb_name: str):
         """获取或缓存数据集对象
+        
+        📦 API: Python SDK - RAGFlow.list_datasets()
+        参考: https://ragflow.com.cn/docs/python_api_reference#list-datasets
 
         Args:
             kb_name: 知识库名称
@@ -117,6 +128,9 @@ class RAGFlowClient:
     def _check_knowledge_base_exists(self, kb_name: str) -> bool:
         """
         检查知识库是否存在
+        
+        📦 API: Python SDK - RAGFlow.list_datasets()
+        参考: https://ragflow.com.cn/docs/python_api_reference#list-datasets
 
         Args:
             kb_name: 知识库名称
@@ -155,6 +169,9 @@ class RAGFlowClient:
 
     def _get_or_create_chat_assistant(self, knowledge_base_name: str):
         """获取或创建聊天助手
+        
+        📦 API: Python SDK - RAGFlow.list_chats() / create_chat()
+        参考: https://ragflow.com.cn/docs/python_api_reference#chat-assistant-management
 
         Args:
             knowledge_base_name: 知识库名称
@@ -236,6 +253,9 @@ class RAGFlowClient:
 
     def _get_or_create_session(self, chat_assistant):
         """获取或创建会话
+        
+        📦 API: Python SDK - Chat.list_sessions() / create_session()
+        参考: https://ragflow.com.cn/docs/python_api_reference#session-management
 
         Args:
             chat_assistant: 聊天助手对象
@@ -266,6 +286,9 @@ class RAGFlowClient:
     def check_health(self) -> bool:
         """
         检查RAGFlow服务健康状态
+        
+        📦 API: Python SDK - RAGFlow.list_datasets()
+        参考: https://ragflow.com.cn/docs/python_api_reference#list-datasets
 
         通过尝试列出数据集来验证SDK连接
         """
@@ -281,6 +304,9 @@ class RAGFlowClient:
                        knowledge_base_name: Optional[str] = None) -> Optional[str]:
         """
         上传文档到RAGFlow
+        
+        📦 API: Python SDK - DataSet.upload_documents()
+        参考: https://ragflow.com.cn/docs/python_api_reference#upload-documents
 
         Args:
             file_path: 本地文件路径
@@ -331,6 +357,9 @@ class RAGFlowClient:
     def delete_document(self, doc_id: str, kb_name: Optional[str] = None) -> bool:
         """
         删除RAGFlow中的文档
+        
+        📦 API: Python SDK - DataSet.delete_documents()
+        参考: https://ragflow.com.cn/docs/python_api_reference#delete-documents
 
         Args:
             doc_id: 文档ID
@@ -357,6 +386,9 @@ class RAGFlowClient:
                top_k: Optional[int] = None, score_threshold: Optional[float] = None) -> List[Dict[str, Any]]:
         """
         在RAGFlow中进行语义搜索
+        
+        📦 API: Python SDK - DataSet.retrieve()
+        参考: https://ragflow.com.cn/docs/python_api_reference#retrieve
 
         Args:
             query: 搜索查询
@@ -401,6 +433,9 @@ class RAGFlowClient:
             context_limit: int = 5) -> Optional[Dict[str, Any]]:
         """
         在RAGFlow中进行问答
+        
+        📦 API: Python SDK - Session.ask()
+        参考: https://ragflow.com.cn/docs/python_api_reference#ask-question
 
         Args:
             query: 问题
@@ -457,6 +492,9 @@ class RAGFlowClient:
     def get_documents(self, knowledge_base_name: str = "policy_demo_kb") -> List[Dict[str, Any]]:
         """
         获取知识库中的文档列表
+        
+        📦 API: Python SDK - DataSet.list_documents()
+        参考: https://ragflow.com.cn/docs/python_api_reference#list-documents
 
         Args:
             knowledge_base_name: 知识库名称
@@ -507,6 +545,9 @@ class RAGFlowClient:
     def get_document_content(self, doc_id: str, kb_name: Optional[str] = None) -> Optional[str]:
         """
         获取文档的完整内容
+        
+        📦 API: Python SDK - Document.download() / Document.list_chunks()
+        参考: https://ragflow.com.cn/docs/python_api_reference#download-a-document
 
         Args:
             doc_id: 文档ID
@@ -685,6 +726,9 @@ class RAGFlowClient:
     def download_document(self, doc_id: str, kb_name: Optional[str] = None) -> Optional[bytes]:
         """
         下载文档的原始二进制数据（用于PDF预览等）
+        
+        📦 API: Python SDK - Document.download()
+        参考: https://ragflow.com.cn/docs/python_api_reference#download-a-document
 
         Args:
             doc_id: 文档ID
@@ -729,6 +773,9 @@ class RAGFlowClient:
     def get_document_chunks(self, doc_id: str, kb_name: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         获取文档的分块信息
+        
+        📦 API: Python SDK - Document.list_chunks()
+        参考: https://ragflow.com.cn/docs/python_api_reference#list-chunks
 
         Args:
             doc_id: 文档ID

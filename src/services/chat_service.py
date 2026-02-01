@@ -241,51 +241,19 @@ class ChatService:
     
     def _format_references(self, references: list) -> list:
         """
-        格式化参考文档（去重）
+        格式化参考文档（保留RAGFlow原生的chunk结构）
         
         Args:
             references: RAGFlow返回的reference字典列表
         
         Returns:
-            格式化后的文档信息列表（已去重）
+            原始引用列表（不做合并）
         """
-        formatted = []
-        seen_chunks = set()  # 用于去重
+        if not references:
+            return []
         
-        for idx, ref in enumerate(references):
-            # references是字典列表，使用.get()访问
-            chunk_id = ref.get('chunk_id') or ref.get('id')
-            
-            # 如果已经见过这个chunk，跳过
-            if chunk_id and chunk_id in seen_chunks:
-                continue
-            
-            # 提取文档名称（尝试多个可能的key）
-            doc_name = (
-                ref.get('document_name') or 
-                ref.get('doc_name') or
-                ref.get('title') or
-                ref.get('name') or
-                '未知文档'
-            )
-            
-            # 提取内容
-            content = ref.get('content') or ref.get('text') or ''
-            
-            # 只添加有内容的文档
-            if content.strip():
-                formatted.append({
-                    'content': content,
-                    'document_name': doc_name,
-                    'document_id': ref.get('document_id') or ref.get('doc_id') or '',
-                    'chunk_id': chunk_id or '',
-                    'similarity': float(ref.get('similarity') or ref.get('score') or 0.0)
-                })
-                
-                if chunk_id:
-                    seen_chunks.add(chunk_id)
-        
-        return formatted
+        logger.info(f"保留RAGFlow原生引用：{len(references)} chunks")
+        return references
     
     def clear_session(self, session_id: str):
         """

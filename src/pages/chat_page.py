@@ -69,7 +69,7 @@ def format_references_with_anchors(text: str, references: list) -> str:
 
 def deduplicate_references(references: list) -> list:
     """
-    去重参考文档
+    去重参考文档（按文档名去重）
     
     Args:
         references: 原始参考文档列表
@@ -77,18 +77,15 @@ def deduplicate_references(references: list) -> list:
     Returns:
         去重后的参考文档列表（保留原始ID）
     """
-    seen_chunks = set()
+    seen_docs = set()
     deduplicated = []
     
     for idx, ref in enumerate(references):
-        chunk_id = ref.get('chunk_id', '')
-        content = ref.get('content', '')
+        doc_name = ref.get('document_name', '未知文档')
         
-        # 生成唯一标识
-        unique_id = chunk_id or hashlib.md5(content.encode()).hexdigest()[:16]
-        
-        if unique_id not in seen_chunks:
-            seen_chunks.add(unique_id)
+        # 按文档名去重
+        if doc_name not in seen_docs:
+            seen_docs.add(doc_name)
             # 保留原始ID用于映射
             ref['original_id'] = idx
             deduplicated.append(ref)
@@ -150,25 +147,79 @@ def show():
             else:
                 st.markdown(msg['content'])
             
-            # 显示参考文档（去重，带锚点）
+            # 显示参考文档（RAGFlow原生风格）
             if msg.get('references') and len(msg['references']) > 0:
-                dedup_refs = deduplicate_references(msg['references'])
+                references = msg['references']
                 
-                with st.expander(f"📚 参考文档 ({len(dedup_refs)}个)", expanded=False):
-                    for i, ref in enumerate(dedup_refs, 1):
-                        # 添加锚点
-                        st.markdown(f'<div id="ref-{i}"></div>', unsafe_allow_html=True)
+                # 按文档分组统计
+                doc_groups = {}
+                for ref in references:
+                    doc_name = ref.get('document_name', 'Unknown')
+                    if doc_name not in doc_groups:
+                        doc_groups[doc_name] = {
+                            'count': 0,
+                            'chunks': [],
+                            'doc_id': ref.get('document_id', ''),
+                            'dataset_id': ref.get('dataset_id', '')
+                        }
+                    doc_groups[doc_name]['count'] += 1
+                    doc_groups[doc_name]['chunks'].append(ref)
+                
+                with st.expander(
+                    f"📚 参考文档 ({len(doc_groups)}个文档, {len(references)}个引用片段)", 
+                    expanded=False
+                ):
+                    # 显示每个chunk（类似RAGFlow）
+                    for i, ref in enumerate(references, 1):
+                        doc_name = ref.get('document_name', 'Unknown')
+                        doc_id = ref.get('document_id', '')
+                        dataset_id = ref.get('dataset_id', '')
+                        similarity = ref.get('similarity', 0)
+                        chunk_id = ref.get('id', '')
+                        image_id = ref.get('image_id', '')
                         
-                        st.markdown(f"**[{i}] {ref['document_name']}**")
-                        st.caption(f"相似度: {ref['similarity']:.2%}")
+                        col1, col2 = st.columns([5, 1])
+                        with col1:
+                            st.markdown(f"**引用 #{i}: {doc_name}**")
+                            st.caption(f"相似度: {similarity:.2%} | ID: {chunk_id[:12]}...")
                         
-                        content = ref['content']
-                        if len(content) > 300:
-                            st.text(content[:300] + "...")
-                        else:
-                            st.text(content)
+                        with col2:
+                            # 下载按钮（获取完整文档）
+                            if st.button("📥", key=f"download_doc_{chunk_id}", 
+                                       help="下载完整文档"):
+                                try:
+                                    from src.clients.ragflow_client import RAGFlowClient
+                                    ragflow = RAGFlowClient()
+                                    
+                                    # 通过dataset查找文档并下载
+                                    datasets = ragflow.rag.list_datasets(id=dataset_id)
+                                    if datasets:
+                                        docs = datasets[0].list_documents(id=doc_id)
+                                        if docs:
+                                            content = docs[0].download()
+                                            st.download_button(
+                                                label="💾 保存",
+                                                data=content,
+                                                file_name=doc_name,
+                                                mime="application/octet-stream",
+                                                key=f"save_{chunk_id}"
+                                            )
+                                        else:
+                                            st.error("文档未找到")
+                                    else:
+                                        st.error("知识库未找到")
+                                except Exception as e:
+                                    st.error(f"下载失败: {str(e)}")
                         
-                        if i < len(dedup_refs):
+                        # 显示chunk内容（可折叠）
+                        with st.expander("查看引用内容", expanded=False):
+                            st.markdown(ref.get('content', ''))
+                            
+                            # 如果有图片截图
+                            if image_id:
+                                st.caption(f"📸 包含图片截图 (ID: {image_id})")
+                        
+                        if i < len(references):
                             st.divider()
             
             # 显示知识图谱（折叠）

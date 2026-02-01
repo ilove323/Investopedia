@@ -824,12 +824,13 @@ def build_graph(kb_name: str, is_incremental: bool):
         
         # 构建图谱
         mode = "增量" if is_incremental else "全量"
-        status_container.info(f"🚀 开始{mode}构建知识图谱...")
+        status_container.info(f"🚀 开始{mode}构建知识图谱（并发处理中）...")
         
         result = data_sync.build_knowledge_graph(
             kb_name=kb_name,
             is_incremental=is_incremental,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
+            max_workers=3  # 并发数：3个文档同时处理
         )
         
         # 清除进度显示

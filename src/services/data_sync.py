@@ -281,23 +281,27 @@ class DataSyncService:
     
     def build_knowledge_graph(self, kb_name: str = "policy_demo_kb", 
                              is_incremental: bool = False,
-                             progress_callback=None) -> Dict[str, Any]:
+                             progress_callback=None,
+                             max_workers: int = 3) -> Dict[str, Any]:
         """
-        从RAGFlow构建知识图谱并存储到数据库
+        从RAGFlow构建知识图谱并存储到数据库（支持并发处理）
         
         Args:
             kb_name: 知识库名称
             is_incremental: 是否增量更新（True=增量，False=全量重建）
             progress_callback: 进度回调函数，接收(current, total, message)
+            max_workers: 最大并发数（默认3，避免触发API限流）
             
         Returns:
             构建结果字典
         """
         import time
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
         start_time = time.time()
         
         try:
-            logger.info(f"开始构建知识图谱 (增量={is_incremental})")
+            logger.info(f"开始构建知识图谱 (增量={is_incremental}, 并发数={max_workers})")
             
             # 初始化GraphDAO
             graph_dao = self._init_graph_dao()
@@ -318,9 +322,9 @@ class DataSyncService:
                     'elapsed_time': f"{time.time() - start_time:.2f}秒"
                 }
             
-            # 步骤2: 使用实体抽取服务提取实体和关系
+            # 步骤2: 并发处理文档
             if progress_callback:
-                progress_callback(2, 5, f"正在分析 {len(documents)} 个文档...")
+                progress_callback(2, 5, f"正在并发分析 {len(documents)} 个文档...")
             
             # 初始化实体抽取服务
             entity_service = self._init_entity_service()
@@ -330,45 +334,68 @@ class DataSyncService:
             processed_docs = 0
             seen_doc_names = set()  # 用于去重文档
             seen_node_ids = set()  # 用于去重节点ID
+            failed_docs = []
             
-            # 从每个文档提取实体和关系
-            for idx, doc in enumerate(documents):
-                try:
-                    doc_name = doc.get('name', '').replace('.pdf', '').replace('.docx', '').strip()
-                    
-                    # 跳过重复文档
-                    if doc_name in seen_doc_names:
-                        logger.info(f"跳过重复文档: {doc_name}")
-                        continue
-                    
+            # 准备待处理文档列表（去重）
+            docs_to_process = []
+            for doc in documents:
+                doc_name = doc.get('name', '').replace('.pdf', '').replace('.docx', '').strip()
+                if doc_name not in seen_doc_names:
                     seen_doc_names.add(doc_name)
+                    docs_to_process.append(doc)
+            
+            logger.info(f"去重后待处理文档数: {len(docs_to_process)}")
+            
+            # 并发处理文档
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # 提交所有任务
+                future_to_doc = {
+                    executor.submit(
+                        self._process_single_document,
+                        doc,
+                        kb_name,
+                        entity_service
+                    ): doc
+                    for doc in docs_to_process
+                }
+                
+                # 处理完成的任务
+                completed = 0
+                for future in as_completed(future_to_doc):
+                    completed += 1
+                    doc = future_to_doc[future]
+                    doc_name = doc.get('name', '')
                     
                     if progress_callback:
-                        progress_callback(2, 5, f"分析文档 {idx+1}/{len(documents)}: {doc_name[:30]}...")
-                    
-                    # 获取文档内容
-                    doc_content = self.ragflow.get_document_content(doc.get('id'), kb_name)
-                    
-                    if doc_content and len(doc_content) > 50:
-                        # 使用Qwen提取实体和关系
-                        doc_nodes, doc_edges = self._extract_entities_and_relations(
-                            doc_content, 
-                            doc_name
+                        progress_callback(
+                            2, 5, 
+                            f"进度 {completed}/{len(docs_to_process)}: {doc_name[:30]}..."
                         )
-                        
-                        # 去重节点（基于ID）
-                        for node in doc_nodes:
-                            node_id = node.get('id')
-                            if node_id and node_id not in seen_node_ids:
-                                seen_node_ids.add(node_id)
-                                all_nodes.append(node)
-                        
-                        all_edges.extend(doc_edges)
-                        processed_docs += 1
                     
-                except Exception as e:
-                    logger.warning(f"处理文档失败 {doc.get('name', '')}: {e}")
-                    continue
+                    try:
+                        result = future.result()
+                        if result:
+                            doc_nodes, doc_edges = result
+                            
+                            # 去重节点（基于ID）
+                            for node in doc_nodes:
+                                node_id = node.get('id')
+                                if node_id and node_id not in seen_node_ids:
+                                    seen_node_ids.add(node_id)
+                                    all_nodes.append(node)
+                            
+                            all_edges.extend(doc_edges)
+                            processed_docs += 1
+                        else:
+                            failed_docs.append(doc_name)
+                    
+                    except Exception as e:
+                        logger.warning(f"处理文档失败 {doc_name}: {e}")
+                        failed_docs.append(doc_name)
+                        continue
+            
+            if failed_docs:
+                logger.warning(f"失败文档数: {len(failed_docs)}/{len(docs_to_process)}")
             
             # 步骤3: 构建图谱数据结构
             if progress_callback:
@@ -414,6 +441,41 @@ class DataSyncService:
                 'doc_count': 0,
                 'elapsed_time': f"{elapsed:.2f}秒"
             }
+    
+    def _process_single_document(self, doc: Dict, kb_name: str, entity_service) -> Optional[Tuple[List[Dict], List[Dict]]]:
+        """
+        处理单个文档（用于并发调用）
+        
+        Args:
+            doc: 文档对象
+            kb_name: 知识库名称
+            entity_service: 实体抽取服务
+            
+        Returns:
+            (nodes, edges) 或 None（失败时）
+        """
+        try:
+            doc_name = doc.get('name', '').replace('.pdf', '').replace('.docx', '').strip()
+            doc_id = doc.get('id')
+            
+            # 获取文档内容
+            doc_content = self.ragflow.get_document_content(doc_id, kb_name)
+            
+            if not doc_content or len(doc_content) < 50:
+                logger.warning(f"文档内容为空或过短: {doc_name}")
+                return None
+            
+            # 使用Qwen提取实体和关系
+            doc_nodes, doc_edges = self._extract_entities_and_relations(
+                doc_content, 
+                doc_name
+            )
+            
+            return (doc_nodes, doc_edges)
+            
+        except Exception as e:
+            logger.error(f"处理文档异常 {doc.get('name', '')}: {e}")
+            return None
     
     def _extract_entities_and_relations(self, text: str, doc_title: str) -> Tuple[List[Dict], List[Dict]]:
         """
