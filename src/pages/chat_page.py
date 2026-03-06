@@ -357,8 +357,8 @@ def show():
                     stream=True
                 ):
                     if chunk['type'] == 'chunk':
-                        # 文本chunk - RAGFlow返回的是累积内容，直接使用
-                        full_response = chunk['content']
+                        # 文本chunk - 增量累积
+                        full_response += chunk['content']
                         message_placeholder.markdown(full_response + "▌")
                     
                     elif chunk['type'] == 'reference':
