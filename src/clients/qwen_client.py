@@ -108,7 +108,10 @@ class QwenClient:
             if max_tokens is None:
                 max_tokens = self.default_max_tokens
             
-            logger.debug(f"调用Qwen API: model={self.model}, temperature={temperature}")
+            logger.info(f"调用Qwen API: model={self.model}, temperature={temperature}, messages_count={len(messages)}")
+            logger.debug(f"Qwen messages内容: {messages}")
+            _ds_version = getattr(dashscope, '__version__', getattr(dashscope, 'version', 'unknown'))
+            logger.debug(f"dashscope版本: {_ds_version}, api_key前8位: {self.api_key[:8] if self.api_key else 'EMPTY'}")
             
             # 构建参数
             params = {
