@@ -184,7 +184,10 @@ print(f"可用知识库: {', '.join(kbs)}")
 
 ### QwenClient
 
-**模块**: `src/services/qwen_client.py`
+**模块**: `src/clients/qwen_client.py`
+
+> 使用阿里云 **DashScope 原生 SDK** (`dashscope.Generation`) 调用 Qwen 大模型。
+> 当 `[APP] provider = qwen` 时由 `get_llm_client()` 自动选择此客户端。
 
 #### 初始化
 ```python
@@ -193,86 +196,137 @@ from src.clients.qwen_client import get_qwen_client
 client = get_qwen_client()
 ```
 
-#### extract_entities_and_relations()
+#### generate()
 ```python
-def extract_entities_and_relations(text: str, 
-                                   doc_title: str = "") -> Dict
+def generate(
+    messages: List[Dict[str, str]],
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    top_p: Optional[float] = None,
+    stream: bool = False
+) -> Optional[str]
 ```
 
-从文本中抽取实体和关系。
+调用 Qwen 生成API（DashScope）。
 
 **参数**:
-- `text` (str): 待抽取的文本内容
-- `doc_title` (str, 可选): 文档标题（作为上下文）
+- `messages`: 消息列表，格式：`[{"role": "user", "content": "..."}]`
+- `temperature`: 温度参数，不指定则使用配置默认值
+- `max_tokens`: 最大生成token数——建议不低于 2000（实体抽取少于 500 会导致 JSON 截断）
+- `top_p`: 核采样参数
+- `stream`: 占位参数，流式请用 `generate_stream()`
 
-**返回值**:
-```python
-{
-    "entities": [
-        {
-            "text": "广东省科技厅",
-            "type": "AUTHORITY",
-            "description": "政策发布机构"
-        },
-        {
-            "text": "高新技术企业",
-            "type": "CONCEPT",
-            "description": "政策适用对象"
-        }
-    ],
-    "relations": [
-        {
-            "source": "广东省科技厅",
-            "target": "科技创新政策",
-            "type": "ISSUED_BY"
-        },
-        {
-            "source": "科技创新政策",
-            "target": "高新技术企业",
-            "type": "APPLIES_TO"
-        }
-    ]
-}
-```
-
-**实体类型**:
-- `POLICY`: 政策文档
-- `AUTHORITY`: 发布机构
-- `REGION`: 地区
-- `CONCEPT`: 概念/领域
-- `PROJECT`: 项目/计划
-
-**关系类型**:
-- `ISSUED_BY`: 发布关系
-- `APPLIES_TO`: 适用关系
-- `REFERENCES`: 引用关系
-- `AFFECTS`: 影响关系
-- `BELONGS_TO`: 从属关系
-
-**异常**:
-- `APIError`: API调用失败
-- `InvalidResponseError`: 返回格式错误
+**返回值**: `str` 生成文本，失败返回 `None`
 
 **示例**:
 ```python
-text = """
-广东省科技厅发布《科技创新政策》，适用于高新技术企业。
-企业研发费用可享受加计扣除优惠。
-"""
-
-result = client.extract_entities_and_relations(text, "科技创新政策")
-
-print(f"提取实体数: {len(result['entities'])}")
-print(f"提取关系数: {len(result['relations'])}")
-
-for entity in result['entities']:
-    print(f"- {entity['text']} ({entity['type']})")
+response = client.generate(
+    messages=[
+        {"role": "system", "content": "你是一个政策文件分析助手"},
+        {"role": "user", "content": "请抽取实体，返回JSON"}
+    ],
+    temperature=0.1,
+    max_tokens=2000
+)
+print(response)
 ```
 
-**性能**:
-- 单次调用耗时: 3-5秒
-- Token消耗: ~1500-3000 (根据文档长度)
-- 成本: ~￥0.01-0.02/文档 (qwen-plus)
+#### generate_stream()
+```python
+def generate_stream(
+    messages: List[Dict[str, str]],
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None
+) -> Generator
+```
+
+流式生成（生成器），逐块 yield 文本片段。
+
+---
+
+### OpenAIClient
+
+**模块**: `src/clients/openai_client.py`
+
+> 使用 **OpenAI SDK** 调用任意兼容 OpenAI 协议的模型服务。
+> 当 `[APP] provider = openai` 时由 `get_llm_client()` 自动选择此客户端。
+
+#### 初始化
+```python
+from src.clients.openai_client import get_openai_client
+
+client = get_openai_client()
+```
+
+#### generate()
+```python
+def generate(
+    messages: List[Dict[str, str]],
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    top_p: Optional[float] = None,
+    stream: bool = False
+) -> Optional[str]
+```
+
+调用 Chat Completions。接口与 `QwenClient.generate()` 完全相同，可互换使用。
+
+**支持的服务**:
+- 阿里云百炼：`base_url = https://dashscope.aliyuncs.com/compatible-mode/v1`
+- OpenAI 官方：`base_url = https://api.openai.com/v1`
+- 本地 Ollama：`base_url = http://localhost:11434/v1`
+
+**示例**:
+```python
+response = client.generate(
+    messages=[
+        {"role": "system", "content": "你是一个政策文件分析助手"},
+        {"role": "user", "content": "请抽取实体，返回JSON"}
+    ],
+    temperature=0.1,
+    max_tokens=4000
+)
+print(response)
+```
+
+#### generate_stream()
+```python
+def generate_stream(
+    messages: List[Dict[str, str]],
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None
+) -> Generator
+```
+
+基于 OpenAI SDK `stream=True` + `delta.content` 分块返回。
+
+---
+
+### get_llm_client()
+
+**模块**: `src/clients/qwen_client.py`
+
+```python
+from src.clients.qwen_client import get_llm_client
+
+client = get_llm_client()
+```
+
+根据 `config.ini` 中 `[APP] provider` 的值自动选择并返回对应的客户端单例。所有上层服务（`entity_extraction_service`、`hybrid_retriever` 等）均通过此函数获取 LLM 客户端。
+
+| `provider` 值 | 返回类型 | 底层调用 |
+|---|---|---|
+| `qwen` | `QwenClient` | DashScope SDK (`dashscope.Generation`) |
+| `openai` | `OpenAIClient` | OpenAI SDK (`chat.completions.create`) |
+
+**示例**:
+```python
+client = get_llm_client()
+response = client.generate(
+    messages=[{"role": "user", "content": "抽取实体"}],
+    max_tokens=4000
+)
+```
 
 ---
 

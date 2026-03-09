@@ -357,15 +357,15 @@ setx RAGFLOW_API_KEY "ragflow-new-key"
 
 | 环境变量 | 对应配置项 |
 |---------|----------|
-| `RAGFLOW_API_URL` | `[RAGFLOW] api_url` |
+| `RAGFLOW_HOST` | `[RAGFLOW] host` |
+| `RAGFLOW_PORT` | `[RAGFLOW] port` |
 | `RAGFLOW_API_KEY` | `[RAGFLOW] api_key` |
-| `RAGFLOW_KB_NAME` | `[RAGFLOW] kb_name` |
 | `QWEN_API_KEY` | `[QWEN] api_key` |
 | `QWEN_MODEL` | `[QWEN] model` |
-| `WHISPER_API_KEY` | `[WHISPER] api_key` |
-| `CHAT_ASSISTANT_ID` | `[CHAT] assistant_id` |
+| `OPENAI_API_KEY` | `[OPENAI] api_key` |
+| `OPENAI_BASE_URL` | `[OPENAI] base_url` |
+| `OPENAI_MODEL` | `[OPENAI] model` |
 | `LOG_LEVEL` | `[APP] log_level` |
-| `DATABASE_PATH` | `[APP] database_path` |
 
 ---
 
@@ -374,11 +374,13 @@ setx RAGFLOW_API_KEY "ragflow-new-key"
 ```bash
 # 创建.env文件
 cat > .env << EOF
-RAGFLOW_API_URL=http://localhost:9380
+RAGFLOW_HOST=127.0.0.1
+RAGFLOW_PORT=9380
 RAGFLOW_API_KEY=ragflow-your-key
-QWEN_API_KEY=sk-your-key
-WHISPER_API_KEY=sk-your-openai-key
-CHAT_ASSISTANT_ID=your-assistant-id
+QWEN_API_KEY=sk-your-dashscope-key
+OPENAI_API_KEY=sk-your-api-key
+OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+OPENAI_MODEL=qwen-turbo
 LOG_LEVEL=DEBUG
 EOF
 
@@ -427,16 +429,19 @@ export QWEN_MODEL=qwen-max
 
 ```ini
 [APP]
-log_level = DEBUG
-log_file = logs/dev.log
+provider = openai   # 使用 OpenAI 兼容接口
+debug = true
 
 [RAGFLOW]
-api_url = http://localhost:9380
-kb_name = test_kb
-similarity_threshold = 0.2  # 降低阈值，便于测试
+host = 127.0.0.1
+port = 9380
+search_score_threshold = 0.2  # 降低阈值，便于测试
 
-[QWEN]
-model = qwen-turbo  # 使用更便宜的模型
+[OPENAI]
+base_url = https://dashscope.aliyuncs.com/compatible-mode/v1
+api_key = sk-your-key
+model = qwen-turbo   # 使用更便宜的模型
+max_tokens = 4000
 temperature = 0.1
 ```
 
@@ -446,62 +451,56 @@ temperature = 0.1
 
 ```ini
 [APP]
-log_level = WARNING  # 只记录警告和错误
-log_file = logs/prod.log
+provider = openai
+debug = false
 
 [RAGFLOW]
-api_url = https://ragflow.yourcompany.com
-kb_name = production_kb
-api_timeout = 60
-similarity_threshold = 0.5  # 提高阈值，确保质量
+host = ragflow.yourcompany.com
+port = 9380
+search_score_threshold = 0.5  # 提高阈值，确保质量
 
-[QWEN]
-model = qwen-plus  # 平衡性能和成本
+[OPENAI]
+base_url = https://dashscope.aliyuncs.com/compatible-mode/v1
+api_key = sk-your-key
+model = qwen-plus    # 平衡性能和成本
+max_tokens = 4000
 temperature = 0.1
 
 [DATABASE]
-db_type = postgresql  # 使用PostgreSQL
-pg_host = db.yourcompany.com
-pg_database = investopedia_prod
+type = sqlite
+sqlite_path = data/database/policy.db
 ```
 
 ---
 
-### 场景3: 离线演示环境
+### 场景3: 切换为 DashScope 原生 SDK
 
 ```ini
 [APP]
-log_level = INFO
-
-[RAGFLOW]
-# 使用本地RAGFlow实例
-api_url = http://localhost:9380
-kb_name = demo_kb
+# 切换为 DashScope 原生 SDK 调用
+provider = qwen
 
 [QWEN]
-# 使用本地部署的Qwen（如果有）
-# 或使用缓存的结果
+api_key = sk-your-dashscope-key
 model = qwen-turbo
-
-# 禁用外部API（在代码中实现mock）
-offline_mode = true
+max_tokens = 2000
+temperature = 0.1
 ```
 
 ---
 
-### 场景4: 多知识库切换
+### 场景4: 接入本地 Ollama
 
-```bash
-# 方式1: 环境变量切换
-export RAGFLOW_KB_NAME=kb_finance
-streamlit run app.py
+```ini
+[APP]
+provider = openai
 
-export RAGFLOW_KB_NAME=kb_technology
-streamlit run app.py
-
-# 方式2: 在UI中切换
-# 在documents_page.py添加知识库选择器
-selected_kb = st.selectbox("选择知识库", ["kb_finance", "kb_technology"])
+[OPENAI]
+base_url = http://localhost:11434/v1
+api_key = ollama
+model = qwen2.5:7b
+max_tokens = 4000
+temperature = 0.1
 ```
 
 ---
@@ -558,12 +557,12 @@ health = client.check_health()
 print(f'RAGFlow状态: {health}')
 "
 
-# 测试Qwen API
-python -c "
-from src.clients.qwen_client import get_qwen_client
-client = get_qwen_client()
-result = client.extract_entities_and_relations('测试文本', '测试文档')
-print(f'Qwen API正常: {len(result[\"entities\"])} 个实体')
+# 测试Qwen DashScope 连接
+python3 -c "
+from src.clients.qwen_client import get_llm_client
+client = get_llm_client()
+result = client.generate([{'role': 'user', 'content': 'hi'}], max_tokens=10)
+print(f'LLM 客户端正常: {result}')
 "
 ```
 

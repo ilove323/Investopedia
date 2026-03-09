@@ -5,6 +5,7 @@
 """
 
 from .qwen_client import QwenClient
+from .openai_client import OpenAIClient
 from .ragflow_client import RAGFlowClient
 
-__all__ = ['QwenClient', 'RAGFlowClient']
+__all__ = ['QwenClient', 'OpenAIClient', 'RAGFlowClient']

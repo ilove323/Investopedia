@@ -55,8 +55,8 @@ pip install -r requirements.txt
 ```
 streamlit==1.28.0        # Web框架
 ragflow-sdk>=0.13.0      # RAGFlow客户端
-dashscope                # Qwen API
-openai                   # Whisper API
+dashscope                # Qwen DashScope 原生 SDK
+openai                   # OpenAI 兼容接口 / Whisper API
 networkx==3.1            # 图算法
 pyvis==0.3.2             # 图可视化
 pandas                   # 数据处理
@@ -74,16 +74,25 @@ vim config/config.ini
 
 **必需配置**:
 ```ini
-[RAGFLOW]
-api_url = http://localhost:9380
-api_key = ragflow-your-api-key
-kb_name = policy_demo_kb
+[APP]
+# 大模型提供商： qwen = DashScope原生SDK， openai = OpenAI兼容接口
+provider = openai
 
+[RAGFLOW]
+host = 127.0.0.1
+port = 9380
+api_key = ragflow-your-api-key
+
+[OPENAI]
+# 接入地址（阿里云百炼 / OpenAI官方 / Ollama 均可）
+base_url = https://dashscope.aliyuncs.com/compatible-mode/v1
+api_key = sk-your-api-key
+model = qwen-turbo
+
+# 如果使用 DashScope 原生 SDK（provider = qwen）
 [QWEN]
 api_key = sk-your-qwen-api-key
-
-[CHAT]
-assistant_id = your-chat-assistant-id
+model = qwen-turbo
 ```
 
 ### 初始化数据库
@@ -127,10 +136,16 @@ Investopedia/
 │   │   └── policy_card.py
 │   ├── services/               # 🔌 服务层
 │   │   ├── ragflow_client.py   # RAGFlow封装
-│   │   ├── qwen_client.py      # Qwen封装
 │   │   ├── chat_service.py     # Chat Assistant
 │   │   ├── data_sync.py        # 数据同步（核心）
+│   │   ├── entity_extraction_service.py  # 实体抽取
+│   │   ├── hybrid_retriever.py # 混合检索
 │   │   └── whisper_client.py   # 语音识别
+│   ├── clients/                # 🔌 API客户端
+│   │   ├── qwen_client.py      # DashScope原生客户端
+│   │   ├── openai_client.py    # OpenAI兼容客户端
+│   │   ├── ragflow_client.py   # RAGFlow客户端
+│   │   └── whisper_client.py   # Whisper客户端
 │   ├── database/               # 🗄️ 数据访问层
 │   │   ├── db_manager.py
 │   │   ├── policy_dao.py

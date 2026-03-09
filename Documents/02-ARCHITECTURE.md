@@ -34,13 +34,13 @@
 │                 │ │              │ │              │
 │ ValidityChecker │ │ RAGFlowClient│ │  PolicyDAO   │
 │ ImpactAnalyzer  │ │ QwenClient   │ │  GraphDAO    │
-│ TagGenerator    │ │ ChatService  │ │ DBManager    │
-│ MetadataExtract │ │ DataSync     │ │              │
+│ TagGenerator    │ │ OpenAIClient │ │ DBManager    │
+│ MetadataExtract │ │ ChatService  │ │              │
 └─────────────────┘ └──────────────┘ └──────────────┘
          ↓               ↓               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                        数据层                                │
-│  SQLite    │  RAGFlow知识库  │  Qwen API  │  Whisper API   │
+│  SQLite  │  RAGFlow知识库  │  DashScope API  │  Whisper API │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -61,8 +61,8 @@
 
 ### 后端服务层
 - **RAGFlow SDK** `0.13.0+` - 文档管理、向量检索、Chat Assistant
-- **DashScope SDK** - Qwen大模型API（实体关系抽取）
-- **OpenAI SDK** - Whisper语音识别
+- **DashScope SDK** - Qwen大模型原生接口（实体关系抽取，`provider=qwen` 时使用）
+- **OpenAI SDK** - OpenAI 兼容接口（`provider=openai` 时作为LLM调用）及 Whisper 语音识别
 - **NetworkX** `3.1` - 图算法库
 
 ### 数据层
@@ -160,19 +160,40 @@ class RAGFlowClient:
 
 ---
 
-#### `qwen_client.py` - Qwen大模型封装
+#### `qwen_client.py` - Qwen大模型封装（DashScope原生SDK）
 ```python
 class QwenClient:
-    def extract_entities_and_relations(text, doc_title) -> Dict
-    # 返回: {"entities": [...], "relations": [...]}
+    def generate(messages, temperature, max_tokens, top_p, stream) -> Optional[str]
+    def generate_stream(messages, temperature, max_tokens) -> Generator
+    def check_health() -> bool
+
+def get_qwen_client() -> QwenClient   # 单例
+def get_llm_client()                  # 按 provider 配置自动路由
 ```
 
-**用途**: 实体关系抽取（知识图谱构建核心）
+**用途**: 通过阿里云 DashScope SDK（`dashscope.Generation`）调用 Qwen 大模型，适用于 `[APP] provider = qwen`。
 
 **提示词工程**:
 - 模板文件: `config/prompts/entity_extraction.txt`
 - 输出格式: 严格JSON（entities数组 + relations数组）
 - 温度参数: 0.1（确保稳定输出）
+
+---
+
+#### `openai_client.py` - OpenAI 兼容接口封装
+```python
+class OpenAIClient:
+    def generate(messages, temperature, max_tokens, top_p, stream) -> Optional[str]
+    def generate_stream(messages, temperature, max_tokens) -> Generator
+    def check_health() -> bool
+
+def get_openai_client() -> OpenAIClient  # 单例
+```
+
+**用途**: 通过 OpenAI SDK 调用任意兼容 OpenAI 协议的模型服务，适用于 `[APP] provider = openai`。支持：
+- 阿里云百炼（`https://dashscope.aliyuncs.com/compatible-mode/v1`）
+- OpenAI 官方（`https://api.openai.com/v1`）
+- 本地 Ollama（`http://localhost:11434/v1`）等
 
 ---
 
@@ -321,11 +342,12 @@ class ConfigLoader:
 **配置文件**: `config/config.ini`
 
 **配置段**:
-- `[APP]` - 应用配置
+- `[APP]` - 应用配置（含 `provider` 字段控制 LLM 路由）
 - `[RAGFLOW]` - RAGFlow配置
-- `[QWEN]` - Qwen配置
+- `[QWEN]` - Qwen DashScope 原生配置
+- `[OPENAI]` - OpenAI 兼容接口配置（支持阿里云百炼等）
 - `[WHISPER]` - Whisper配置
-- `[CHAT]` - Chat配置
+- `[KNOWLEDGE_BASES]` - 知识库配置映射
 
 ---
 

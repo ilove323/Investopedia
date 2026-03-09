@@ -242,7 +242,7 @@ model = qwen-plus
 
 # 生成参数
 temperature = 0.1  # 温度参数 (0-1)，越低越确定
-max_tokens = 500  # 最大生成token数
+max_tokens = 8000  # 最大生成token数
 
 # =====================================================
 [OPENAI]
@@ -255,4 +255,4 @@ base_url = https://api.openai.com/v1
 api_key = your-api-key-here
 model = gpt-4o-mini
 temperature = 0.1  # 温度参数 (0-1)，越低越确定
-max_tokens = 500   # 最大生成token数
+max_tokens = 8000   # 最大生成token数
