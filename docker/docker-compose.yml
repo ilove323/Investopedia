@@ -9,4 +9,5 @@ services:
       - "8501:8501"
     volumes:
       - ../:/app
+    command: ["/usr/local/bin/streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
     restart: unless-stopped
