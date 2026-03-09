@@ -3,6 +3,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    image: investopedia_app:latest
     container_name: investopedia_app
     ports:
       - "8501:8501"
