@@ -30,7 +30,7 @@ import logging
 from typing import Dict, List
 from pathlib import Path
 
-from src.clients.qwen_client import get_qwen_client
+from src.clients.qwen_client import get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class EntityExtractionService:
                 - 64000: 超长文档模式（约128页A4纸）
                 - 0: 不限制（完整文档，可能很贵！）
         """
-        self.qwen_client = get_qwen_client()
+        self.qwen_client = get_llm_client()
         self.prompt_file = Path(prompt_file)
         self.system_prompt = self._load_prompt_template()
         self.max_text_length = max_text_length
@@ -202,7 +202,7 @@ def get_entity_extraction_service() -> EntityExtractionService:
         config = get_config()
         
         _entity_extraction_service = EntityExtractionService(
-            prompt_file=config.qwen_prompt_file
+            prompt_file=config.entity_prompt_file
         )
     
     return _entity_extraction_service

@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 from src.models.graph import PolicyGraph, NodeType, GraphNode, GraphEdge, RelationType
-from src.clients.qwen_client import get_qwen_client
+from src.clients.qwen_client import get_llm_client
 from src.config import get_config
 
 logger = logging.getLogger(__name__)
@@ -241,8 +241,8 @@ class HybridRetriever:
             # 构建prompt
             prompt = prompt_template.replace("{query}", query)
             
-            # 调用Qwen（使用generate方法，传入messages格式）
-            qwen_client = get_qwen_client()
+            # 调用LLM（根据 provider 配置自动选择 Qwen 或 OpenAI）
+            qwen_client = get_llm_client()
             response = qwen_client.generate(
                 messages=[{"role": "user", "content": prompt}]
             )

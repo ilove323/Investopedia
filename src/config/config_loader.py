@@ -133,6 +133,11 @@ class ConfigLoader:
         return self.get_bool("APP", "debug", False)
 
     @property
+    def llm_provider(self) -> str:
+        """大模型提供商：qwen 或 openai"""
+        return self.get("APP", "provider", "qwen").lower()
+
+    @property
     def default_language(self) -> str:
         return self.get("APP", "default_language", "zh")
 
@@ -604,15 +609,36 @@ class ConfigLoader:
         return self.get_int('QWEN', 'max_tokens', 2000)
     
     @property
-    def qwen_prompt_file(self) -> str:
-        """Qwen提示词文件路径"""
-        return self.get('QWEN', 'prompt_file', 'config/prompts/entity_extraction.txt')
-    
-    # ==================== 兼容性方法 ====================
-    
+    def entity_prompt_file(self) -> str:
+        """实体提取提示词文件路径"""
+        return self.get('APP', 'entity_prompt_file', 'config/prompts/entity_extraction.txt')
+
+    # ===== OPENAI配置 =====
     @property
-    def policy_kb_name(self) -> str:
-        """兼容性方法：获取政策知识库名称"""
+    def openai_base_url(self) -> str:
+        """OpenAI 兼容接口地址"""
+        return self.get('OPENAI', 'base_url', 'https://api.openai.com/v1')
+
+    @property
+    def openai_api_key(self) -> str:
+        """OpenAI API密钥"""
+        return self.get('OPENAI', 'api_key', '')
+
+    @property
+    def openai_model(self) -> str:
+        """OpenAI 模型名称"""
+        return self.get('OPENAI', 'model', 'gpt-4o-mini')
+
+    @property
+    def openai_temperature(self) -> float:
+        """OpenAI 温度参数"""
+        return self.get_float('OPENAI', 'temperature', 0.1)
+
+    @property
+    def openai_max_tokens(self) -> int:
+        """OpenAI 最大token数"""
+        return self.get_int('OPENAI', 'max_tokens', 500)
+
         return self.default_kb_name
     
     def get_policy_config(self) -> dict:

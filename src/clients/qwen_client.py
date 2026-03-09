@@ -206,16 +206,100 @@ _qwen_client_instance = None
 def get_qwen_client() -> QwenClient:
     """获取Qwen客户端单例"""
     global _qwen_client_instance
-    
+
     if _qwen_client_instance is None:
         from src.config import get_config
         config = get_config()
-        
+
         _qwen_client_instance = QwenClient(
             api_key=config.qwen_api_key,
             model=config.qwen_model,
             temperature=config.qwen_temperature,
             max_tokens=config.qwen_max_tokens
         )
-    
+
     return _qwen_client_instance
+
+
+# ===== OpenAI 兼容客户端 =====
+
+class OpenAIClient:
+    """OpenAI 兼容接口客户端，支持任意兼容 OpenAI 协议的服务"""
+
+    def __init__(self, base_url: str, api_key: str, model: str,
+                 temperature: float = 0.1, max_tokens: int = 500):
+        try:
+            from openai import OpenAI
+        except ImportError:
+            raise ImportError("请安装 openai 包: pip install openai")
+
+        from openai import OpenAI
+        self.client = OpenAI(base_url=base_url, api_key=api_key)
+        self.model = model
+        self.default_temperature = temperature
+        self.default_max_tokens = max_tokens
+        logger.info(f"OpenAI客户端初始化成功: model={model}, base_url={base_url}")
+
+    def generate(self, messages: List[Dict[str, str]],
+                 temperature: Optional[float] = None,
+                 max_tokens: Optional[int] = None) -> Optional[str]:
+        if temperature is None:
+            temperature = self.default_temperature
+        if max_tokens is None:
+            max_tokens = self.default_max_tokens
+        try:
+            logger.debug(f"调用OpenAI API: model={self.model}, temperature={temperature}")
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            content = resp.choices[0].message.content
+            logger.debug(f"OpenAI API调用成功: {len(content)}字符")
+            return content
+        except Exception as e:
+            logger.error(f"OpenAI API调用失败: {e}", exc_info=True)
+            return None
+
+    def check_health(self) -> bool:
+        try:
+            return self.generate([{"role": "user", "content": "hi"}], max_tokens=5) is not None
+        except Exception:
+            return False
+
+
+_openai_client_instance = None
+
+
+def get_openai_client() -> OpenAIClient:
+    """获取OpenAI兼容客户端单例"""
+    global _openai_client_instance
+
+    if _openai_client_instance is None:
+        from src.config import get_config
+        config = get_config()
+
+        _openai_client_instance = OpenAIClient(
+            base_url=config.openai_base_url,
+            api_key=config.openai_api_key,
+            model=config.openai_model,
+            temperature=config.openai_temperature,
+            max_tokens=config.openai_max_tokens
+        )
+
+    return _openai_client_instance
+
+
+def get_llm_client():
+    """
+    根据 config.ini [APP] provider 返回对应的 LLM 客户端。
+
+    provider = qwen  -> QwenClient
+    provider = openai -> OpenAIClient
+    """
+    from src.config import get_config
+    provider = get_config().llm_provider
+    if provider == "openai":
+        return get_openai_client()
+    return get_qwen_client()
