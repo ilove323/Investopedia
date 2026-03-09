@@ -6,6 +6,7 @@ audio-recorder-streamlit>=0.0.10
 # API和HTTP
 requests>=2.32.0
 urllib3>=2.2.0
+openai>=1.0.0
 
 # 数据处理
 pandas>=2.2.3
