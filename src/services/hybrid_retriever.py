@@ -244,9 +244,7 @@ class HybridRetriever:
             # 调用Qwen（使用generate方法，传入messages格式）
             qwen_client = get_qwen_client()
             response = qwen_client.generate(
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=200,
-                temperature=0.1
+                messages=[{"role": "user", "content": prompt}]
             )
             
             # 解析返回的实体列表（逗号分隔）
