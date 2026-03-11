@@ -46,6 +46,7 @@ SDK内部会自动处理HTTP请求，开发者无需关心底层HTTP通信细节
     results = client.search("政策内容", top_k=10)
 """
 import logging
+import traceback
 from typing import Optional, Dict, List, Any
 
 # ===== 导入官方RAGFlow SDK =====
@@ -90,7 +91,8 @@ class RAGFlowClient:
         self._dataset_cache = {}
         self._chat_cache = {}
 
-        logger.info(f"RAGFlow SDK initialized: {RAGFLOW_BASE_URL}")
+        api_key_hint = RAGFLOW_API_KEY[:12] + "..." if RAGFLOW_API_KEY and len(RAGFLOW_API_KEY) > 12 else "(empty)"
+        logger.info(f"RAGFlow SDK initialized: base_url={RAGFLOW_BASE_URL}, api_key={api_key_hint}")
 
 
 
@@ -303,9 +305,15 @@ class RAGFlowClient:
         try:
             # 尝试列出数据集以验证连接
             self.rag.list_datasets(page=1, page_size=1)
+            logger.info(f"RAGFlow health check passed: {RAGFLOW_BASE_URL}")
             return True
         except Exception as e:
-            logger.debug(f"RAGFlow health check failed: {e}")
+            logger.error(
+                f"RAGFlow health check failed: {type(e).__name__}: {e}\n"
+                f"  base_url={RAGFLOW_BASE_URL}\n"
+                f"  请检查: 1) ragflow服务是否启动 2) host/port配置是否正确 3) api_key是否有效\n"
+                f"{traceback.format_exc()}"
+            )
             return False
 
     def upload_document(self, file_path: str, file_name: str,
